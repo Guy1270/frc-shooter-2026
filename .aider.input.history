@@ -1,0 +1,2424 @@
+
+# 2026-03-15 19:03:07.309314
++IMPORTANT - USE THESE EXACT LIBRARY VERSIONS:
++- WPILib 2026 (latest 2026 season release)
++- Phoenix 6 version 26.x.x (CTRE 2026)
++- Limelight use NT4 NetworkTables API
++- All vendordep JSON files must use 2026 URLs
++
++VENDORDEP URLS TO USE:
++- Phoenix 6: https://maven.ctr-electronics.com/release/com/ctre/phoenix6/latest/Phoenix6-frc2026-latest.json
++- WPILib is built in, do not add as vendordep
++
++Do NOT use any 2023, 2024, or 2025 syntax. Use only 2026 APIs.
++
++Build a complete FRC shooter system. Work through these files ONE AT A TIME.
++After each file compiles cleanly do: git add . && git commit -m "complete: [filename]" && git push
++Never skip ahead.
++
++FILE ORDER:
++1. vendordeps/Phoenix6.json — add Phoenix 6 2026 vendordep
++2. Constants.java — all CAN IDs, PID values, interpolation table, physical measurements
++3. subsystems/LimelightSubsystem.java — Limelight 4 via NT4, distance calc, rolling average filter
++4. subsystems/ShooterSubsystem.java — Kraken X60 via Phoenix 6, MotionMagicVelocityVoltage, 250Hz signals
++5. subsystems/HoodSubsystem.java — Falcon 500 via Phoenix 6, MotionMagicPositionVoltage, 25:1 gear ratio
++6. subsystems/DriveSubsystem.java — Pigeon 2.0 via Phoenix 6 for robot rotation
++7. commands/RotateToTargetCommand.java — PID on Limelight tx, ends within 1 degree for 0.1 seconds
++8. commands/PrepareToShootCommand.java — sets RPS and hood angle from distance interpolation table
++9. commands/WaitForShooterReadyCommand.java — waits for RPS within 1 RPS and hood within 1 degree, 2 second timeout
++10. commands/ShootCommand.java — fires only if shooter and hood are both ready
++11. RobotContainer.java — wires everything together, full shoot sequence button binding
++
++SHOOTER REQUIREMENTS:
++- Kraken X60 via TalonFX Phoenix 6 2026
++- MotionMagicVelocityVoltage for smooth consistent spin-up
++- kS, kV, kA feedforward in Constants.java
++- Target RPS from interpolation table based on Limelight distance
++- Ready when RPS within +/- 1 RPS for 0.1 seconds debounced
++- StatusSignal at 250Hz for minimal shot-to-shot variation
++- Never use open loop percent output
++
++HOOD REQUIREMENTS:
++- Falcon 500 via TalonFX Phoenix 6 2026
++- MotionMagicPositionVoltage for smooth precise movement
++- 25:1 gear ratio accounted for in sensor position conversion
++- Angle from same interpolation table as shooter RPS
++- Soft limits on TalonFX to prevent over-extension
++- Ready when within 1 degree of target
++
++LIMELIGHT REQUIREMENTS:
++- NT4 NetworkTables API, table name from Constants
++- tx, ty, tv signals
++- Distance calculated from ty, camera height, target height, camera angle
++- Rolling average of 5 distance samples to prevent jitter
++- Never use distance if tv is false
++
++AUTO-ALIGN REQUIREMENTS:
++- PID controller on Limelight tx error
++- Pigeon 2.0 for rotation stability
++- Ends when tx within 1 degree for 0.1 seconds
++- Does nothing if no valid target
++
++INTERPOLATION TABLE:
++- At least 6 distance/RPS/angle data points from 1.5m to 6m
++- Use TreeMap for automatic sorting by distance
++
++COMMENTS REQUIREMENT:
++- Every class must have a Javadoc comment explaining what it does
++- Every method must have a Javadoc comment
++- Every constant must have an inline comment with units and tuning advice
++- Every PID gain must comment: increase to X, decrease to Y
++- All non-obvious math must have step-by-step comments
++
++TUNING REQUIREMENT:
++- All tunable values in Constants.java only, never hardcoded elsewhere
++- Group Constants.java into clearly labeled sections:
++    // ── SHOOTER TUNING ──
++    // ── HOOD TUNING ──
++    // ── LIMELIGHT TUNING ──
++    // ── AUTO-ALIGN TUNING ──
++    // ── INTERPOLATION TABLE ──
++- Every tunable value must have a comment showing units and safe tuning range
++- When TUNING_MODE = true in Constants, read all PID values live from SmartDashboard
++
++RELIABILITY:
++- Never shoot if hasTarget() is false
++- Never shoot if RPM tolerance not met
++- Never shoot if hood angle tolerance not met
++- All three checks must pass simultaneously
++
++Build must pass after every single file: ./gradlew build
+
+# 2026-03-15 19:03:07.309533
++IMPORTANT - USE THESE EXACT LIBRARY VERSIONS:
++- WPILib 2026 (latest 2026 season release)
++- Phoenix 6 version 26.x.x (CTRE 2026)
++- Limelight use NT4 NetworkTables API
++- All vendordep JSON files must use 2026 URLs
++
++VENDORDEP URLS TO USE:
++- Phoenix 6: https://maven.ctr-electronics.com/release/com/ctre/phoenix6/latest/Phoenix6-frc2026-latest.json
++- WPILib is built in, do not add as vendordep
++
++Do NOT use any 2023, 2024, or 2025 syntax. Use only 2026 APIs.
++
++Build a complete FRC shooter system. Work through these files ONE AT A TIME.
++After each file compiles cleanly do: git add . && git commit -m "complete: [filename]" && git push
++Never skip ahead.
++
++FILE ORDER:
++1. vendordeps/Phoenix6.json — add Phoenix 6 2026 vendordep
++2. Constants.java — all CAN IDs, PID values, interpolation table, physical measurements
++3. subsystems/LimelightSubsystem.java — Limelight 4 via NT4, distance calc, rolling average filter
++4. subsystems/ShooterSubsystem.java — Kraken X60 via Phoenix 6, MotionMagicVelocityVoltage, 250Hz signals
++5. subsystems/HoodSubsystem.java — Falcon 500 via Phoenix 6, MotionMagicPositionVoltage, 25:1 gear ratio
++6. subsystems/DriveSubsystem.java — Pigeon 2.0 via Phoenix 6 for robot rotation
++7. commands/RotateToTargetCommand.java — PID on Limelight tx, ends within 1 degree for 0.1 seconds
++8. commands/PrepareToShootCommand.java — sets RPS and hood angle from distance interpolation table
++9. commands/WaitForShooterReadyCommand.java — waits for RPS within 1 RPS and hood within 1 degree, 2 second timeout
++10. commands/ShootCommand.java — fires only if shooter and hood are both ready
++11. RobotContainer.java — wires everything together, full shoot sequence button binding
++
++SHOOTER REQUIREMENTS:
++- Kraken X60 via TalonFX Phoenix 6 2026
++- MotionMagicVelocityVoltage for smooth consistent spin-up
++- kS, kV, kA feedforward in Constants.java
++- Target RPS from interpolation table based on Limelight distance
++- Ready when RPS within +/- 1 RPS for 0.1 seconds debounced
++- StatusSignal at 250Hz for minimal shot-to-shot variation
++- Never use open loop percent output
++
++HOOD REQUIREMENTS:
++- Falcon 500 via TalonFX Phoenix 6 2026
++- MotionMagicPositionVoltage for smooth precise movement
++- 25:1 gear ratio accounted for in sensor position conversion
++- Angle from same interpolation table as shooter RPS
++- Soft limits on TalonFX to prevent over-extension
++- Ready when within 1 degree of target
++
++LIMELIGHT REQUIREMENTS:
++- NT4 NetworkTables API, table name from Constants
++- tx, ty, tv signals
++- Distance calculated from ty, camera height, target height, camera angle
++- Rolling average of 5 distance samples to prevent jitter
++- Never use distance if tv is false
++
++AUTO-ALIGN REQUIREMENTS:
++- PID controller on Limelight tx error
++- Pigeon 2.0 for rotation stability
++- Ends when tx within 1 degree for 0.1 seconds
++- Does nothing if no valid target
++
++INTERPOLATION TABLE:
++- At least 6 distance/RPS/angle data points from 1.5m to 6m
++- Use TreeMap for automatic sorting by distance
++
++COMMENTS REQUIREMENT:
++- Every class must have a Javadoc comment explaining what it does
++- Every method must have a Javadoc comment
++- Every constant must have an inline comment with units and tuning advice
++- Every PID gain must comment: increase to X, decrease to Y
++- All non-obvious math must have step-by-step comments
++
++TUNING REQUIREMENT:
++- All tunable values in Constants.java only, never hardcoded elsewhere
++- Group Constants.java into clearly labeled sections:
++    // ── SHOOTER TUNING ──
++    // ── HOOD TUNING ──
++    // ── LIMELIGHT TUNING ──
++    // ── AUTO-ALIGN TUNING ──
++    // ── INTERPOLATION TABLE ──
++- Every tunable value must have a comment showing units and safe tuning range
++- When TUNING_MODE = true in Constants, read all PID values live from SmartDashboard
++
++RELIABILITY:
++- Never shoot if hasTarget() is false
++- Never shoot if RPM tolerance not met
++- Never shoot if hood angle tolerance not met
++- All three checks must pass simultaneously
++
++Build must pass after every single file: ./gradlew build
+
+# 2026-03-15 19:11:28.176054
++cat > ~/task.md << 'TASKEOF'
++IMPORTANT - USE THESE EXACT LIBRARY VERSIONS:
++- WPILib 2026 (latest 2026 season release)
++- Phoenix 6 version 26.x.x (CTRE 2026)
++- Limelight use NT4 NetworkTables API
++- All vendordep JSON files must use 2026 URLs
++
++VENDORDEP URLS TO USE:
++- Phoenix 6: https://maven.ctr-electronics.com/release/com/ctre/phoenix6/latest/Phoenix6-frc2026-latest.json
++- WPILib is built in, do not add as vendordep
++
++Do NOT use any 2023, 2024, or 2025 syntax. Use only 2026 APIs.
++
++Build a complete FRC shooter system. Work through these files ONE AT A TIME.
++After each file compiles cleanly do: git add . && git commit -m "complete: [filename]" && git push
++Never skip ahead.
++
++FILE ORDER:
++1. vendordeps/Phoenix6.json — add Phoenix 6 2026 vendordep
++2. Constants.java — all CAN IDs, PID values, interpolation table, physical measurements
++3. subsystems/LimelightSubsystem.java — Limelight 4 via NT4, distance calc, rolling average filter
++4. subsystems/ShooterSubsystem.java — Kraken X60 via Phoenix 6, MotionMagicVelocityVoltage, 250Hz signals
++5. subsystems/HoodSubsystem.java — Falcon 500 via Phoenix 6, MotionMagicPositionVoltage, 25:1 gear ratio
++6. subsystems/DriveSubsystem.java — Pigeon 2.0 via Phoenix 6 for robot rotation
++7. commands/RotateToTargetCommand.java — PID on Limelight tx, ends within 1 degree for 0.1 seconds
++8. commands/PrepareToShootCommand.java — sets RPS and hood angle from distance interpolation table
++9. commands/WaitForShooterReadyCommand.java — waits for RPS within 1 RPS and hood within 1 degree, 2 second timeout
++10. commands/ShootCommand.java — fires only if shooter and hood are both ready
++11. RobotContainer.java — wires everything together, full shoot sequence button binding
++
++SHOOTER REQUIREMENTS:
++- Kraken X60 via TalonFX Phoenix 6 2026
++- MotionMagicVelocityVoltage for smooth consistent spin-up
++- kS, kV, kA feedforward in Constants.java
++- Target RPS from interpolation table based on Limelight distance
++- Ready when RPS within +/- 1 RPS for 0.1 seconds debounced
++- StatusSignal at 250Hz for minimal shot-to-shot variation
++- Never use open loop percent output
++
++HOOD REQUIREMENTS:
++- Falcon 500 via TalonFX Phoenix 6 2026
++- MotionMagicPositionVoltage for smooth precise movement
++- 25:1 gear ratio accounted for in sensor position conversion
++- Angle from same interpolation table as shooter RPS
++- Soft limits on TalonFX to prevent over-extension
++- Ready when within 1 degree of target
++
++LIMELIGHT REQUIREMENTS:
++- NT4 NetworkTables API, table name from Constants
++- tx, ty, tv signals
++- Distance calculated from ty, camera height, target height, camera angle
++- Rolling average of 5 distance samples to prevent jitter
++- Never use distance if tv is false
++
++AUTO-ALIGN REQUIREMENTS:
++- PID controller on Limelight tx error
++- Pigeon 2.0 for rotation stability
++- Ends when tx within 1 degree for 0.1 seconds
++- Does nothing if no valid target
++
++INTERPOLATION TABLE:
++- At least 6 distance/RPS/angle data points from 1.5m to 6m
++- Use TreeMap for automatic sorting by distance
++
++COMMENTS REQUIREMENT:
++- Every class must have a Javadoc comment explaining what it does
++- Every method must have a Javadoc comment
++- Every constant must have an inline comment with units and tuning advice
++- Every PID gain must comment: increase to X, decrease to Y
++- All non-obvious math must have step-by-step comments
++
++TUNING REQUIREMENT:
++- All tunable values in Constants.java only, never hardcoded elsewhere
++- Group Constants.java into clearly labeled sections:
++    // ── SHOOTER TUNING ──
++    // ── HOOD TUNING ──
++    // ── LIMELIGHT TUNING ──
++    // ── AUTO-ALIGN TUNING ──
++    // ── INTERPOLATION TABLE ──
++- Every tunable value must have a comment showing units and safe tuning range
++- When TUNING_MODE = true in Constants, read all PID values live from SmartDashboard
++
++RELIABILITY:
++- Never shoot if hasTarget() is false
++- Never shoot if RPM tolerance not met
++- Never shoot if hood angle tolerance not met
++- All three checks must pass simultaneously
++
++Build must pass after every single file: ./gradlew build
++TASKEOF
+
+# 2026-03-15 19:11:28.176234
++cat > ~/task.md << 'TASKEOF'
++IMPORTANT - USE THESE EXACT LIBRARY VERSIONS:
++- WPILib 2026 (latest 2026 season release)
++- Phoenix 6 version 26.x.x (CTRE 2026)
++- Limelight use NT4 NetworkTables API
++- All vendordep JSON files must use 2026 URLs
++
++VENDORDEP URLS TO USE:
++- Phoenix 6: https://maven.ctr-electronics.com/release/com/ctre/phoenix6/latest/Phoenix6-frc2026-latest.json
++- WPILib is built in, do not add as vendordep
++
++Do NOT use any 2023, 2024, or 2025 syntax. Use only 2026 APIs.
++
++Build a complete FRC shooter system. Work through these files ONE AT A TIME.
++After each file compiles cleanly do: git add . && git commit -m "complete: [filename]" && git push
++Never skip ahead.
++
++FILE ORDER:
++1. vendordeps/Phoenix6.json — add Phoenix 6 2026 vendordep
++2. Constants.java — all CAN IDs, PID values, interpolation table, physical measurements
++3. subsystems/LimelightSubsystem.java — Limelight 4 via NT4, distance calc, rolling average filter
++4. subsystems/ShooterSubsystem.java — Kraken X60 via Phoenix 6, MotionMagicVelocityVoltage, 250Hz signals
++5. subsystems/HoodSubsystem.java — Falcon 500 via Phoenix 6, MotionMagicPositionVoltage, 25:1 gear ratio
++6. subsystems/DriveSubsystem.java — Pigeon 2.0 via Phoenix 6 for robot rotation
++7. commands/RotateToTargetCommand.java — PID on Limelight tx, ends within 1 degree for 0.1 seconds
++8. commands/PrepareToShootCommand.java — sets RPS and hood angle from distance interpolation table
++9. commands/WaitForShooterReadyCommand.java — waits for RPS within 1 RPS and hood within 1 degree, 2 second timeout
++10. commands/ShootCommand.java — fires only if shooter and hood are both ready
++11. RobotContainer.java — wires everything together, full shoot sequence button binding
++
++SHOOTER REQUIREMENTS:
++- Kraken X60 via TalonFX Phoenix 6 2026
++- MotionMagicVelocityVoltage for smooth consistent spin-up
++- kS, kV, kA feedforward in Constants.java
++- Target RPS from interpolation table based on Limelight distance
++- Ready when RPS within +/- 1 RPS for 0.1 seconds debounced
++- StatusSignal at 250Hz for minimal shot-to-shot variation
++- Never use open loop percent output
++
++HOOD REQUIREMENTS:
++- Falcon 500 via TalonFX Phoenix 6 2026
++- MotionMagicPositionVoltage for smooth precise movement
++- 25:1 gear ratio accounted for in sensor position conversion
++- Angle from same interpolation table as shooter RPS
++- Soft limits on TalonFX to prevent over-extension
++- Ready when within 1 degree of target
++
++LIMELIGHT REQUIREMENTS:
++- NT4 NetworkTables API, table name from Constants
++- tx, ty, tv signals
++- Distance calculated from ty, camera height, target height, camera angle
++- Rolling average of 5 distance samples to prevent jitter
++- Never use distance if tv is false
++
++AUTO-ALIGN REQUIREMENTS:
++- PID controller on Limelight tx error
++- Pigeon 2.0 for rotation stability
++- Ends when tx within 1 degree for 0.1 seconds
++- Does nothing if no valid target
++
++INTERPOLATION TABLE:
++- At least 6 distance/RPS/angle data points from 1.5m to 6m
++- Use TreeMap for automatic sorting by distance
++
++COMMENTS REQUIREMENT:
++- Every class must have a Javadoc comment explaining what it does
++- Every method must have a Javadoc comment
++- Every constant must have an inline comment with units and tuning advice
++- Every PID gain must comment: increase to X, decrease to Y
++- All non-obvious math must have step-by-step comments
++
++TUNING REQUIREMENT:
++- All tunable values in Constants.java only, never hardcoded elsewhere
++- Group Constants.java into clearly labeled sections:
++    // ── SHOOTER TUNING ──
++    // ── HOOD TUNING ──
++    // ── LIMELIGHT TUNING ──
++    // ── AUTO-ALIGN TUNING ──
++    // ── INTERPOLATION TABLE ──
++- Every tunable value must have a comment showing units and safe tuning range
++- When TUNING_MODE = true in Constants, read all PID values live from SmartDashboard
++
++RELIABILITY:
++- Never shoot if hasTarget() is false
++- Never shoot if RPM tolerance not met
++- Never shoot if hood angle tolerance not met
++- All three checks must pass simultaneously
++
++Build must pass after every single file: ./gradlew build
++TASKEOF
+
+# 2026-03-15 19:12:36.291485
++cat > ~/task.md << 'TASKEOF'
++IMPORTANT - USE THESE EXACT LIBRARY VERSIONS:
++- WPILib 2026 (latest 2026 season release)
++- Phoenix 6 version 26.x.x (CTRE 2026)
++- Limelight use NT4 NetworkTables API
++- All vendordep JSON files must use 2026 URLs
++
++VENDORDEP URLS TO USE:
++- Phoenix 6: https://maven.ctr-electronics.com/release/com/ctre/phoenix6/latest/Phoenix6-frc2026-latest.json
++- WPILib is built in, do not add as vendordep
++
++Do NOT use any 2023, 2024, or 2025 syntax. Use only 2026 APIs.
++
++Build a complete FRC shooter system. Work through these files ONE AT A TIME.
++After each file compiles cleanly do: git add . && git commit -m "complete: [filename]" && git push
++Never skip ahead.
++
++FILE ORDER:
++1. vendordeps/Phoenix6.json — add Phoenix 6 2026 vendordep
++2. Constants.java — all CAN IDs, PID values, interpolation table, physical measurements
++3. subsystems/LimelightSubsystem.java — Limelight 4 via NT4, distance calc, rolling average filter
++4. subsystems/ShooterSubsystem.java — Kraken X60 via Phoenix 6, MotionMagicVelocityVoltage, 250Hz signals
++5. subsystems/HoodSubsystem.java — Falcon 500 via Phoenix 6, MotionMagicPositionVoltage, 25:1 gear ratio
++6. subsystems/DriveSubsystem.java — Pigeon 2.0 via Phoenix 6 for robot rotation
++7. commands/RotateToTargetCommand.java — PID on Limelight tx, ends within 1 degree for 0.1 seconds
++8. commands/PrepareToShootCommand.java — sets RPS and hood angle from distance interpolation table
++9. commands/WaitForShooterReadyCommand.java — waits for RPS within 1 RPS and hood within 1 degree, 2 second timeout
++10. commands/ShootCommand.java — fires only if shooter and hood are both ready
++11. RobotContainer.java — wires everything together, full shoot sequence button binding
++
++SHOOTER REQUIREMENTS:
++- Kraken X60 via TalonFX Phoenix 6 2026
++- MotionMagicVelocityVoltage for smooth consistent spin-up
++- kS, kV, kA feedforward in Constants.java
++- Target RPS from interpolation table based on Limelight distance
++- Ready when RPS within +/- 1 RPS for 0.1 seconds debounced
++- StatusSignal at 250Hz for minimal shot-to-shot variation
++- Never use open loop percent output
++
++HOOD REQUIREMENTS:
++- Falcon 500 via TalonFX Phoenix 6 2026
++- MotionMagicPositionVoltage for smooth precise movement
++- 25:1 gear ratio accounted for in sensor position conversion
++- Angle from same interpolation table as shooter RPS
++- Soft limits on TalonFX to prevent over-extension
++- Ready when within 1 degree of target
++
++LIMELIGHT REQUIREMENTS:
++- NT4 NetworkTables API, table name from Constants
++- tx, ty, tv signals
++- Distance calculated from ty, camera height, target height, camera angle
++- Rolling average of 5 distance samples to prevent jitter
++- Never use distance if tv is false
++
++AUTO-ALIGN REQUIREMENTS:
++- PID controller on Limelight tx error
++- Pigeon 2.0 for rotation stability
++- Ends when tx within 1 degree for 0.1 seconds
++- Does nothing if no valid target
++
++INTERPOLATION TABLE:
++- At least 6 distance/RPS/angle data points from 1.5m to 6m
++- Use TreeMap for automatic sorting by distance
++
++COMMENTS REQUIREMENT:
++- Every class must have a Javadoc comment explaining what it does
++- Every method must have a Javadoc comment
++- Every constant must have an inline comment with units and tuning advice
++- Every PID gain must comment: increase to X, decrease to Y
++- All non-obvious math must have step-by-step comments
++
++TUNING REQUIREMENT:
++- All tunable values in Constants.java only, never hardcoded elsewhere
++- Group Constants.java into clearly labeled sections:
++    // ── SHOOTER TUNING ──
++    // ── HOOD TUNING ──
++    // ── LIMELIGHT TUNING ──
++    // ── AUTO-ALIGN TUNING ──
++    // ── INTERPOLATION TABLE ──
++- Every tunable value must have a comment showing units and safe tuning range
++- When TUNING_MODE = true in Constants, read all PID values live from SmartDashboard
++
++RELIABILITY:
++- Never shoot if hasTarget() is false
++- Never shoot if RPM tolerance not met
++- Never shoot if hood angle tolerance not met
++- All three checks must pass simultaneously
++
++Build must pass after every single file: ./gradlew build
++TASKEOF
+
+# 2026-03-15 19:12:36.294615
++cat > ~/task.md << 'TASKEOF'
++IMPORTANT - USE THESE EXACT LIBRARY VERSIONS:
++- WPILib 2026 (latest 2026 season release)
++- Phoenix 6 version 26.x.x (CTRE 2026)
++- Limelight use NT4 NetworkTables API
++- All vendordep JSON files must use 2026 URLs
++
++VENDORDEP URLS TO USE:
++- Phoenix 6: https://maven.ctr-electronics.com/release/com/ctre/phoenix6/latest/Phoenix6-frc2026-latest.json
++- WPILib is built in, do not add as vendordep
++
++Do NOT use any 2023, 2024, or 2025 syntax. Use only 2026 APIs.
++
++Build a complete FRC shooter system. Work through these files ONE AT A TIME.
++After each file compiles cleanly do: git add . && git commit -m "complete: [filename]" && git push
++Never skip ahead.
++
++FILE ORDER:
++1. vendordeps/Phoenix6.json — add Phoenix 6 2026 vendordep
++2. Constants.java — all CAN IDs, PID values, interpolation table, physical measurements
++3. subsystems/LimelightSubsystem.java — Limelight 4 via NT4, distance calc, rolling average filter
++4. subsystems/ShooterSubsystem.java — Kraken X60 via Phoenix 6, MotionMagicVelocityVoltage, 250Hz signals
++5. subsystems/HoodSubsystem.java — Falcon 500 via Phoenix 6, MotionMagicPositionVoltage, 25:1 gear ratio
++6. subsystems/DriveSubsystem.java — Pigeon 2.0 via Phoenix 6 for robot rotation
++7. commands/RotateToTargetCommand.java — PID on Limelight tx, ends within 1 degree for 0.1 seconds
++8. commands/PrepareToShootCommand.java — sets RPS and hood angle from distance interpolation table
++9. commands/WaitForShooterReadyCommand.java — waits for RPS within 1 RPS and hood within 1 degree, 2 second timeout
++10. commands/ShootCommand.java — fires only if shooter and hood are both ready
++11. RobotContainer.java — wires everything together, full shoot sequence button binding
++
++SHOOTER REQUIREMENTS:
++- Kraken X60 via TalonFX Phoenix 6 2026
++- MotionMagicVelocityVoltage for smooth consistent spin-up
++- kS, kV, kA feedforward in Constants.java
++- Target RPS from interpolation table based on Limelight distance
++- Ready when RPS within +/- 1 RPS for 0.1 seconds debounced
++- StatusSignal at 250Hz for minimal shot-to-shot variation
++- Never use open loop percent output
++
++HOOD REQUIREMENTS:
++- Falcon 500 via TalonFX Phoenix 6 2026
++- MotionMagicPositionVoltage for smooth precise movement
++- 25:1 gear ratio accounted for in sensor position conversion
++- Angle from same interpolation table as shooter RPS
++- Soft limits on TalonFX to prevent over-extension
++- Ready when within 1 degree of target
++
++LIMELIGHT REQUIREMENTS:
++- NT4 NetworkTables API, table name from Constants
++- tx, ty, tv signals
++- Distance calculated from ty, camera height, target height, camera angle
++- Rolling average of 5 distance samples to prevent jitter
++- Never use distance if tv is false
++
++AUTO-ALIGN REQUIREMENTS:
++- PID controller on Limelight tx error
++- Pigeon 2.0 for rotation stability
++- Ends when tx within 1 degree for 0.1 seconds
++- Does nothing if no valid target
++
++INTERPOLATION TABLE:
++- At least 6 distance/RPS/angle data points from 1.5m to 6m
++- Use TreeMap for automatic sorting by distance
++
++COMMENTS REQUIREMENT:
++- Every class must have a Javadoc comment explaining what it does
++- Every method must have a Javadoc comment
++- Every constant must have an inline comment with units and tuning advice
++- Every PID gain must comment: increase to X, decrease to Y
++- All non-obvious math must have step-by-step comments
++
++TUNING REQUIREMENT:
++- All tunable values in Constants.java only, never hardcoded elsewhere
++- Group Constants.java into clearly labeled sections:
++    // ── SHOOTER TUNING ──
++    // ── HOOD TUNING ──
++    // ── LIMELIGHT TUNING ──
++    // ── AUTO-ALIGN TUNING ──
++    // ── INTERPOLATION TABLE ──
++- Every tunable value must have a comment showing units and safe tuning range
++- When TUNING_MODE = true in Constants, read all PID values live from SmartDashboard
++
++RELIABILITY:
++- Never shoot if hasTarget() is false
++- Never shoot if RPM tolerance not met
++- Never shoot if hood angle tolerance not met
++- All three checks must pass simultaneously
++
++Build must pass after every single file: ./gradlew build
++TASKEOF
+
+# 2026-03-15 19:16:14.559026
++cat > ~/task.md << 'TASKEOF'
++IMPORTANT - USE THESE EXACT LIBRARY VERSIONS:
++- WPILib 2026 (latest 2026 season release)
++- Phoenix 6 version 26.x.x (CTRE 2026)
++- Limelight use NT4 NetworkTables API
++- All vendordep JSON files must use 2026 URLs
++
++VENDORDEP URLS TO USE:
++- Phoenix 6: https://maven.ctr-electronics.com/release/com/ctre/phoenix6/latest/Phoenix6-frc2026-latest.json
++- WPILib is built in, do not add as vendordep
++
++Do NOT use any 2023, 2024, or 2025 syntax. Use only 2026 APIs.
++
++Build a complete FRC shooter system. Work through these files ONE AT A TIME.
++After each file compiles cleanly do: git add . && git commit -m "complete: [filename]" && git push
++Never skip ahead.
++
++FILE ORDER:
++1. vendordeps/Phoenix6.json — add Phoenix 6 2026 vendordep
++2. Constants.java — all CAN IDs, PID values, interpolation table, physical measurements
++3. subsystems/LimelightSubsystem.java — Limelight 4 via NT4, distance calc, rolling average filter
++4. subsystems/ShooterSubsystem.java — Kraken X60 via Phoenix 6, MotionMagicVelocityVoltage, 250Hz signals
++5. subsystems/HoodSubsystem.java — Falcon 500 via Phoenix 6, MotionMagicPositionVoltage, 25:1 gear ratio
++6. subsystems/DriveSubsystem.java — Pigeon 2.0 via Phoenix 6 for robot rotation
++7. commands/RotateToTargetCommand.java — PID on Limelight tx, ends within 1 degree for 0.1 seconds
++8. commands/PrepareToShootCommand.java — sets RPS and hood angle from distance interpolation table
++9. commands/WaitForShooterReadyCommand.java — waits for RPS within 1 RPS and hood within 1 degree, 2 second timeout
++10. commands/ShootCommand.java — fires only if shooter and hood are both ready
++11. RobotContainer.java — wires everything together, full shoot sequence button binding
++
++SHOOTER REQUIREMENTS:
++- Kraken X60 via TalonFX Phoenix 6 2026
++- MotionMagicVelocityVoltage for smooth consistent spin-up
++- kS, kV, kA feedforward in Constants.java
++- Target RPS from interpolation table based on Limelight distance
++- Ready when RPS within +/- 1 RPS for 0.1 seconds debounced
++- StatusSignal at 250Hz for minimal shot-to-shot variation
++- Never use open loop percent output
++
++HOOD REQUIREMENTS:
++- Falcon 500 via TalonFX Phoenix 6 2026
++- MotionMagicPositionVoltage for smooth precise movement
++- 25:1 gear ratio accounted for in sensor position conversion
++- Angle from same interpolation table as shooter RPS
++- Soft limits on TalonFX to prevent over-extension
++- Ready when within 1 degree of target
++
++LIMELIGHT REQUIREMENTS:
++- NT4 NetworkTables API, table name from Constants
++- tx, ty, tv signals
++- Distance calculated from ty, camera height, target height, camera angle
++- Rolling average of 5 distance samples to prevent jitter
++- Never use distance if tv is false
++
++AUTO-ALIGN REQUIREMENTS:
++- PID controller on Limelight tx error
++- Pigeon 2.0 for rotation stability
++- Ends when tx within 1 degree for 0.1 seconds
++- Does nothing if no valid target
++
++INTERPOLATION TABLE:
++- At least 6 distance/RPS/angle data points from 1.5m to 6m
++- Use TreeMap for automatic sorting by distance
++
++COMMENTS REQUIREMENT:
++- Every class must have a Javadoc comment explaining what it does
++- Every method must have a Javadoc comment
++- Every constant must have an inline comment with units and tuning advice
++- Every PID gain must comment: increase to X, decrease to Y
++- All non-obvious math must have step-by-step comments
++
++TUNING REQUIREMENT:
++- All tunable values in Constants.java only, never hardcoded elsewhere
++- Group Constants.java into clearly labeled sections:
++    // ── SHOOTER TUNING ──
++    // ── HOOD TUNING ──
++    // ── LIMELIGHT TUNING ──
++    // ── AUTO-ALIGN TUNING ──
++    // ── INTERPOLATION TABLE ──
++- Every tunable value must have a comment showing units and safe tuning range
++- When TUNING_MODE = true in Constants, read all PID values live from SmartDashboard
++
++RELIABILITY:
++- Never shoot if hasTarget() is false
++- Never shoot if RPM tolerance not met
++- Never shoot if hood angle tolerance not met
++- All three checks must pass simultaneously
++
++Build must pass after every single file: ./gradlew build
++TASKEOF
+
+# 2026-03-15 19:16:14.559208
++cat > ~/task.md << 'TASKEOF'
++IMPORTANT - USE THESE EXACT LIBRARY VERSIONS:
++- WPILib 2026 (latest 2026 season release)
++- Phoenix 6 version 26.x.x (CTRE 2026)
++- Limelight use NT4 NetworkTables API
++- All vendordep JSON files must use 2026 URLs
++
++VENDORDEP URLS TO USE:
++- Phoenix 6: https://maven.ctr-electronics.com/release/com/ctre/phoenix6/latest/Phoenix6-frc2026-latest.json
++- WPILib is built in, do not add as vendordep
++
++Do NOT use any 2023, 2024, or 2025 syntax. Use only 2026 APIs.
++
++Build a complete FRC shooter system. Work through these files ONE AT A TIME.
++After each file compiles cleanly do: git add . && git commit -m "complete: [filename]" && git push
++Never skip ahead.
++
++FILE ORDER:
++1. vendordeps/Phoenix6.json — add Phoenix 6 2026 vendordep
++2. Constants.java — all CAN IDs, PID values, interpolation table, physical measurements
++3. subsystems/LimelightSubsystem.java — Limelight 4 via NT4, distance calc, rolling average filter
++4. subsystems/ShooterSubsystem.java — Kraken X60 via Phoenix 6, MotionMagicVelocityVoltage, 250Hz signals
++5. subsystems/HoodSubsystem.java — Falcon 500 via Phoenix 6, MotionMagicPositionVoltage, 25:1 gear ratio
++6. subsystems/DriveSubsystem.java — Pigeon 2.0 via Phoenix 6 for robot rotation
++7. commands/RotateToTargetCommand.java — PID on Limelight tx, ends within 1 degree for 0.1 seconds
++8. commands/PrepareToShootCommand.java — sets RPS and hood angle from distance interpolation table
++9. commands/WaitForShooterReadyCommand.java — waits for RPS within 1 RPS and hood within 1 degree, 2 second timeout
++10. commands/ShootCommand.java — fires only if shooter and hood are both ready
++11. RobotContainer.java — wires everything together, full shoot sequence button binding
++
++SHOOTER REQUIREMENTS:
++- Kraken X60 via TalonFX Phoenix 6 2026
++- MotionMagicVelocityVoltage for smooth consistent spin-up
++- kS, kV, kA feedforward in Constants.java
++- Target RPS from interpolation table based on Limelight distance
++- Ready when RPS within +/- 1 RPS for 0.1 seconds debounced
++- StatusSignal at 250Hz for minimal shot-to-shot variation
++- Never use open loop percent output
++
++HOOD REQUIREMENTS:
++- Falcon 500 via TalonFX Phoenix 6 2026
++- MotionMagicPositionVoltage for smooth precise movement
++- 25:1 gear ratio accounted for in sensor position conversion
++- Angle from same interpolation table as shooter RPS
++- Soft limits on TalonFX to prevent over-extension
++- Ready when within 1 degree of target
++
++LIMELIGHT REQUIREMENTS:
++- NT4 NetworkTables API, table name from Constants
++- tx, ty, tv signals
++- Distance calculated from ty, camera height, target height, camera angle
++- Rolling average of 5 distance samples to prevent jitter
++- Never use distance if tv is false
++
++AUTO-ALIGN REQUIREMENTS:
++- PID controller on Limelight tx error
++- Pigeon 2.0 for rotation stability
++- Ends when tx within 1 degree for 0.1 seconds
++- Does nothing if no valid target
++
++INTERPOLATION TABLE:
++- At least 6 distance/RPS/angle data points from 1.5m to 6m
++- Use TreeMap for automatic sorting by distance
++
++COMMENTS REQUIREMENT:
++- Every class must have a Javadoc comment explaining what it does
++- Every method must have a Javadoc comment
++- Every constant must have an inline comment with units and tuning advice
++- Every PID gain must comment: increase to X, decrease to Y
++- All non-obvious math must have step-by-step comments
++
++TUNING REQUIREMENT:
++- All tunable values in Constants.java only, never hardcoded elsewhere
++- Group Constants.java into clearly labeled sections:
++    // ── SHOOTER TUNING ──
++    // ── HOOD TUNING ──
++    // ── LIMELIGHT TUNING ──
++    // ── AUTO-ALIGN TUNING ──
++    // ── INTERPOLATION TABLE ──
++- Every tunable value must have a comment showing units and safe tuning range
++- When TUNING_MODE = true in Constants, read all PID values live from SmartDashboard
++
++RELIABILITY:
++- Never shoot if hasTarget() is false
++- Never shoot if RPM tolerance not met
++- Never shoot if hood angle tolerance not met
++- All three checks must pass simultaneously
++
++Build must pass after every single file: ./gradlew build
++TASKEOF
+
+# 2026-03-15 19:25:04.220023
++cat > ~/task.md << 'TASKEOF'
++IMPORTANT - USE THESE EXACT LIBRARY VERSIONS:
++- WPILib 2026 (latest 2026 season release)
++- Phoenix 6 version 26.x.x (CTRE 2026)
++- Limelight use NT4 NetworkTables API
++- All vendordep JSON files must use 2026 URLs
++
++VENDORDEP URLS TO USE:
++- Phoenix 6: https://maven.ctr-electronics.com/release/com/ctre/phoenix6/latest/Phoenix6-frc2026-latest.json
++- WPILib is built in, do not add as vendordep
++
++Do NOT use any 2023, 2024, or 2025 syntax. Use only 2026 APIs.
++
++Build a complete FRC shooter system. Work through these files ONE AT A TIME.
++After each file compiles cleanly do: git add . && git commit -m "complete: [filename]" && git push
++Never skip ahead.
++
++FILE ORDER:
++1. SKIP — Phoenix6.json already created manually
++2. Constants.java — all CAN IDs, PID values, interpolation table, physical measurements
++3. subsystems/LimelightSubsystem.java — Limelight 4 via NT4, distance calc, rolling average filter
++4. subsystems/ShooterSubsystem.java — Kraken X60 via Phoenix 6, MotionMagicVelocityVoltage, 250Hz signals
++5. subsystems/HoodSubsystem.java — Falcon 500 via Phoenix 6, MotionMagicPositionVoltage, 25:1 gear ratio
++6. subsystems/DriveSubsystem.java — Pigeon 2.0 via Phoenix 6 for robot rotation
++7. commands/RotateToTargetCommand.java — PID on Limelight tx, ends within 1 degree for 0.1 seconds
++8. commands/PrepareToShootCommand.java — sets RPS and hood angle from distance interpolation table
++9. commands/WaitForShooterReadyCommand.java — waits for RPS within 1 RPS and hood within 1 degree, 2 second timeout
++10. commands/ShootCommand.java — fires only if shooter and hood are both ready
++11. RobotContainer.java — wires everything together, full shoot sequence button binding
++
++SHOOTER REQUIREMENTS:
++- Kraken X60 via TalonFX Phoenix 6 2026
++- MotionMagicVelocityVoltage for smooth consistent spin-up
++- kS, kV, kA feedforward in Constants.java
++- Target RPS from interpolation table based on Limelight distance
++- Ready when RPS within +/- 1 RPS for 0.1 seconds debounced
++- StatusSignal at 250Hz for minimal shot-to-shot variation
++- Never use open loop percent output
++
++HOOD REQUIREMENTS:
++- Falcon 500 via TalonFX Phoenix 6 2026
++- MotionMagicPositionVoltage for smooth precise movement
++- 25:1 gear ratio accounted for in sensor position conversion
++- Angle from same interpolation table as shooter RPS
++- Soft limits on TalonFX to prevent over-extension
++- Ready when within 1 degree of target
++
++LIMELIGHT REQUIREMENTS:
++- NT4 NetworkTables API, table name from Constants
++- tx, ty, tv signals
++- Distance calculated from ty, camera height, target height, camera angle
++- Rolling average of 5 distance samples to prevent jitter
++- Never use distance if tv is false
++
++AUTO-ALIGN REQUIREMENTS:
++- PID controller on Limelight tx error
++- Pigeon 2.0 for rotation stability
++- Ends when tx within 1 degree for 0.1 seconds
++- Does nothing if no valid target
++
++INTERPOLATION TABLE:
++- At least 6 distance/RPS/angle data points from 1.5m to 6m
++- Use TreeMap for automatic sorting by distance
++
++COMMENTS REQUIREMENT:
++- Every class must have a Javadoc comment explaining what it does
++- Every method must have a Javadoc comment
++- Every constant must have an inline comment with units and tuning advice
++- Every PID gain must comment: increase to X, decrease to Y
++- All non-obvious math must have step-by-step comments
++
++TUNING REQUIREMENT:
++- All tunable values in Constants.java only, never hardcoded elsewhere
++- Group Constants.java into clearly labeled sections:
++    // ── SHOOTER TUNING ──
++    // ── HOOD TUNING ──
++    // ── LIMELIGHT TUNING ──
++    // ── AUTO-ALIGN TUNING ──
++    // ── INTERPOLATION TABLE ──
++- Every tunable value must have a comment showing units and safe tuning range
++- When TUNING_MODE = true in Constants, read all PID values live from SmartDashboard
++
++RELIABILITY:
++- Never shoot if hasTarget() is false
++- Never shoot if RPM tolerance not met
++- Never shoot if hood angle tolerance not met
++- All three checks must pass simultaneously
++
++Build must pass after every single file: ./gradlew build
++TASKEOF
+
+# 2026-03-15 19:25:04.220201
++cat > ~/task.md << 'TASKEOF'
++IMPORTANT - USE THESE EXACT LIBRARY VERSIONS:
++- WPILib 2026 (latest 2026 season release)
++- Phoenix 6 version 26.x.x (CTRE 2026)
++- Limelight use NT4 NetworkTables API
++- All vendordep JSON files must use 2026 URLs
++
++VENDORDEP URLS TO USE:
++- Phoenix 6: https://maven.ctr-electronics.com/release/com/ctre/phoenix6/latest/Phoenix6-frc2026-latest.json
++- WPILib is built in, do not add as vendordep
++
++Do NOT use any 2023, 2024, or 2025 syntax. Use only 2026 APIs.
++
++Build a complete FRC shooter system. Work through these files ONE AT A TIME.
++After each file compiles cleanly do: git add . && git commit -m "complete: [filename]" && git push
++Never skip ahead.
++
++FILE ORDER:
++1. SKIP — Phoenix6.json already created manually
++2. Constants.java — all CAN IDs, PID values, interpolation table, physical measurements
++3. subsystems/LimelightSubsystem.java — Limelight 4 via NT4, distance calc, rolling average filter
++4. subsystems/ShooterSubsystem.java — Kraken X60 via Phoenix 6, MotionMagicVelocityVoltage, 250Hz signals
++5. subsystems/HoodSubsystem.java — Falcon 500 via Phoenix 6, MotionMagicPositionVoltage, 25:1 gear ratio
++6. subsystems/DriveSubsystem.java — Pigeon 2.0 via Phoenix 6 for robot rotation
++7. commands/RotateToTargetCommand.java — PID on Limelight tx, ends within 1 degree for 0.1 seconds
++8. commands/PrepareToShootCommand.java — sets RPS and hood angle from distance interpolation table
++9. commands/WaitForShooterReadyCommand.java — waits for RPS within 1 RPS and hood within 1 degree, 2 second timeout
++10. commands/ShootCommand.java — fires only if shooter and hood are both ready
++11. RobotContainer.java — wires everything together, full shoot sequence button binding
++
++SHOOTER REQUIREMENTS:
++- Kraken X60 via TalonFX Phoenix 6 2026
++- MotionMagicVelocityVoltage for smooth consistent spin-up
++- kS, kV, kA feedforward in Constants.java
++- Target RPS from interpolation table based on Limelight distance
++- Ready when RPS within +/- 1 RPS for 0.1 seconds debounced
++- StatusSignal at 250Hz for minimal shot-to-shot variation
++- Never use open loop percent output
++
++HOOD REQUIREMENTS:
++- Falcon 500 via TalonFX Phoenix 6 2026
++- MotionMagicPositionVoltage for smooth precise movement
++- 25:1 gear ratio accounted for in sensor position conversion
++- Angle from same interpolation table as shooter RPS
++- Soft limits on TalonFX to prevent over-extension
++- Ready when within 1 degree of target
++
++LIMELIGHT REQUIREMENTS:
++- NT4 NetworkTables API, table name from Constants
++- tx, ty, tv signals
++- Distance calculated from ty, camera height, target height, camera angle
++- Rolling average of 5 distance samples to prevent jitter
++- Never use distance if tv is false
++
++AUTO-ALIGN REQUIREMENTS:
++- PID controller on Limelight tx error
++- Pigeon 2.0 for rotation stability
++- Ends when tx within 1 degree for 0.1 seconds
++- Does nothing if no valid target
++
++INTERPOLATION TABLE:
++- At least 6 distance/RPS/angle data points from 1.5m to 6m
++- Use TreeMap for automatic sorting by distance
++
++COMMENTS REQUIREMENT:
++- Every class must have a Javadoc comment explaining what it does
++- Every method must have a Javadoc comment
++- Every constant must have an inline comment with units and tuning advice
++- Every PID gain must comment: increase to X, decrease to Y
++- All non-obvious math must have step-by-step comments
++
++TUNING REQUIREMENT:
++- All tunable values in Constants.java only, never hardcoded elsewhere
++- Group Constants.java into clearly labeled sections:
++    // ── SHOOTER TUNING ──
++    // ── HOOD TUNING ──
++    // ── LIMELIGHT TUNING ──
++    // ── AUTO-ALIGN TUNING ──
++    // ── INTERPOLATION TABLE ──
++- Every tunable value must have a comment showing units and safe tuning range
++- When TUNING_MODE = true in Constants, read all PID values live from SmartDashboard
++
++RELIABILITY:
++- Never shoot if hasTarget() is false
++- Never shoot if RPM tolerance not met
++- Never shoot if hood angle tolerance not met
++- All three checks must pass simultaneously
++
++Build must pass after every single file: ./gradlew build
++TASKEOF
+
+# 2026-03-15 19:41:26.718056
++cat > ~/task.md << 'TASKEOF'
++FALLBACK RULES:
++- If any URL returns 404 or times out after 30 seconds, use the 2025 version instead
++- If Phoenix6-frc2026 does not exist, use Phoenix6-frc2025-latest.json
++- Never wait more than 30 seconds on any single URL
++- If a library version is unavailable, use the most recent available version
++- Do not stop and ask — just pivot to the fallback automatically
++
++IMPORTANT - USE THESE EXACT LIBRARY VERSIONS:
++- WPILib 2026 (latest 2026 season release)
++- Phoenix 6 version 26.x.x (CTRE 2026)
++- Limelight use NT4 NetworkTables API
++- All vendordep JSON files must use 2026 URLs
++
++VENDORDEP URLS TO USE:
++- Phoenix 6: https://maven.ctr-electronics.com/release/com/ctre/phoenix6/latest/Phoenix6-frc2026-latest.json
++- WPILib is built in, do not add as vendordep
++
++Do NOT use any 2023, 2024, or 2025 syntax. Use only 2026 APIs.
++
++Build a complete FRC shooter system. Work through these files ONE AT A TIME.
++After each file compiles cleanly do: git add . && git commit -m "complete: [filename]" && git push
++Never skip ahead.
++
++FILE ORDER:
++1. SKIP — Phoenix6.json already created manually
++2. Constants.java — all CAN IDs, PID values, interpolation table, physical measurements
++3. subsystems/LimelightSubsystem.java — Limelight 4 via NT4, distance calc, rolling average filter
++4. subsystems/ShooterSubsystem.java — Kraken X60 via Phoenix 6, MotionMagicVelocityVoltage, 250Hz signals
++5. subsystems/HoodSubsystem.java — Falcon 500 via Phoenix 6, MotionMagicPositionVoltage, 25:1 gear ratio
++6. subsystems/DriveSubsystem.java — Pigeon 2.0 via Phoenix 6 for robot rotation
++7. commands/RotateToTargetCommand.java — PID on Limelight tx, ends within 1 degree for 0.1 seconds
++8. commands/PrepareToShootCommand.java — sets RPS and hood angle from distance interpolation table
++9. commands/WaitForShooterReadyCommand.java — waits for RPS within 1 RPS and hood within 1 degree, 2 second timeout
++10. commands/ShootCommand.java — fires only if shooter and hood are both ready
++11. RobotContainer.java — wires everything together, full shoot sequence button binding
++
++SHOOTER REQUIREMENTS:
++- Kraken X60 via TalonFX Phoenix 6 2026
++- MotionMagicVelocityVoltage for smooth consistent spin-up
++- kS, kV, kA feedforward in Constants.java
++- Target RPS from interpolation table based on Limelight distance
++- Ready when RPS within +/- 1 RPS for 0.1 seconds debounced
++- StatusSignal at 250Hz for minimal shot-to-shot variation
++- Never use open loop percent output
++
++HOOD REQUIREMENTS:
++- Falcon 500 via TalonFX Phoenix 6 2026
++- MotionMagicPositionVoltage for smooth precise movement
++- 25:1 gear ratio accounted for in sensor position conversion
++- Angle from same interpolation table as shooter RPS
++- Soft limits on TalonFX to prevent over-extension
++- Ready when within 1 degree of target
++
++LIMELIGHT REQUIREMENTS:
++- NT4 NetworkTables API, table name from Constants
++- tx, ty, tv signals
++- Distance calculated from ty, camera height, target height, camera angle
++- Rolling average of 5 distance samples to prevent jitter
++- Never use distance if tv is false
++
++AUTO-ALIGN REQUIREMENTS:
++- PID controller on Limelight tx error
++- Pigeon 2.0 for rotation stability
++- Ends when tx within 1 degree for 0.1 seconds
++- Does nothing if no valid target
++
++INTERPOLATION TABLE:
++- At least 6 distance/RPS/angle data points from 1.5m to 6m
++- Use TreeMap for automatic sorting by distance
++
++COMMENTS REQUIREMENT:
++- Every class must have a Javadoc comment explaining what it does
++- Every method must have a Javadoc comment
++- Every constant must have an inline comment with units and tuning advice
++- Every PID gain must comment: increase to X, decrease to Y
++- All non-obvious math must have step-by-step comments
++
++TUNING REQUIREMENT:
++- All tunable values in Constants.java only, never hardcoded elsewhere
++- Group Constants.java into clearly labeled sections:
++    // ── SHOOTER TUNING ──
++    // ── HOOD TUNING ──
++    // ── LIMELIGHT TUNING ──
++    // ── AUTO-ALIGN TUNING ──
++    // ── INTERPOLATION TABLE ──
++- Every tunable value must have a comment showing units and safe tuning range
++- When TUNING_MODE = true in Constants, read all PID values live from SmartDashboard
++
++RELIABILITY:
++- Never shoot if hasTarget() is false
++- Never shoot if RPM tolerance not met
++- Never shoot if hood angle tolerance not met
++- All three checks must pass simultaneously
++
++Build must pass after every single file: ./gradlew build
++TASKEOF
+
+# 2026-03-15 19:41:26.718379
++cat > ~/task.md << 'TASKEOF'
++FALLBACK RULES:
++- If any URL returns 404 or times out after 30 seconds, use the 2025 version instead
++- If Phoenix6-frc2026 does not exist, use Phoenix6-frc2025-latest.json
++- Never wait more than 30 seconds on any single URL
++- If a library version is unavailable, use the most recent available version
++- Do not stop and ask — just pivot to the fallback automatically
++
++IMPORTANT - USE THESE EXACT LIBRARY VERSIONS:
++- WPILib 2026 (latest 2026 season release)
++- Phoenix 6 version 26.x.x (CTRE 2026)
++- Limelight use NT4 NetworkTables API
++- All vendordep JSON files must use 2026 URLs
++
++VENDORDEP URLS TO USE:
++- Phoenix 6: https://maven.ctr-electronics.com/release/com/ctre/phoenix6/latest/Phoenix6-frc2026-latest.json
++- WPILib is built in, do not add as vendordep
++
++Do NOT use any 2023, 2024, or 2025 syntax. Use only 2026 APIs.
++
++Build a complete FRC shooter system. Work through these files ONE AT A TIME.
++After each file compiles cleanly do: git add . && git commit -m "complete: [filename]" && git push
++Never skip ahead.
++
++FILE ORDER:
++1. SKIP — Phoenix6.json already created manually
++2. Constants.java — all CAN IDs, PID values, interpolation table, physical measurements
++3. subsystems/LimelightSubsystem.java — Limelight 4 via NT4, distance calc, rolling average filter
++4. subsystems/ShooterSubsystem.java — Kraken X60 via Phoenix 6, MotionMagicVelocityVoltage, 250Hz signals
++5. subsystems/HoodSubsystem.java — Falcon 500 via Phoenix 6, MotionMagicPositionVoltage, 25:1 gear ratio
++6. subsystems/DriveSubsystem.java — Pigeon 2.0 via Phoenix 6 for robot rotation
++7. commands/RotateToTargetCommand.java — PID on Limelight tx, ends within 1 degree for 0.1 seconds
++8. commands/PrepareToShootCommand.java — sets RPS and hood angle from distance interpolation table
++9. commands/WaitForShooterReadyCommand.java — waits for RPS within 1 RPS and hood within 1 degree, 2 second timeout
++10. commands/ShootCommand.java — fires only if shooter and hood are both ready
++11. RobotContainer.java — wires everything together, full shoot sequence button binding
++
++SHOOTER REQUIREMENTS:
++- Kraken X60 via TalonFX Phoenix 6 2026
++- MotionMagicVelocityVoltage for smooth consistent spin-up
++- kS, kV, kA feedforward in Constants.java
++- Target RPS from interpolation table based on Limelight distance
++- Ready when RPS within +/- 1 RPS for 0.1 seconds debounced
++- StatusSignal at 250Hz for minimal shot-to-shot variation
++- Never use open loop percent output
++
++HOOD REQUIREMENTS:
++- Falcon 500 via TalonFX Phoenix 6 2026
++- MotionMagicPositionVoltage for smooth precise movement
++- 25:1 gear ratio accounted for in sensor position conversion
++- Angle from same interpolation table as shooter RPS
++- Soft limits on TalonFX to prevent over-extension
++- Ready when within 1 degree of target
++
++LIMELIGHT REQUIREMENTS:
++- NT4 NetworkTables API, table name from Constants
++- tx, ty, tv signals
++- Distance calculated from ty, camera height, target height, camera angle
++- Rolling average of 5 distance samples to prevent jitter
++- Never use distance if tv is false
++
++AUTO-ALIGN REQUIREMENTS:
++- PID controller on Limelight tx error
++- Pigeon 2.0 for rotation stability
++- Ends when tx within 1 degree for 0.1 seconds
++- Does nothing if no valid target
++
++INTERPOLATION TABLE:
++- At least 6 distance/RPS/angle data points from 1.5m to 6m
++- Use TreeMap for automatic sorting by distance
++
++COMMENTS REQUIREMENT:
++- Every class must have a Javadoc comment explaining what it does
++- Every method must have a Javadoc comment
++- Every constant must have an inline comment with units and tuning advice
++- Every PID gain must comment: increase to X, decrease to Y
++- All non-obvious math must have step-by-step comments
++
++TUNING REQUIREMENT:
++- All tunable values in Constants.java only, never hardcoded elsewhere
++- Group Constants.java into clearly labeled sections:
++    // ── SHOOTER TUNING ──
++    // ── HOOD TUNING ──
++    // ── LIMELIGHT TUNING ──
++    // ── AUTO-ALIGN TUNING ──
++    // ── INTERPOLATION TABLE ──
++- Every tunable value must have a comment showing units and safe tuning range
++- When TUNING_MODE = true in Constants, read all PID values live from SmartDashboard
++
++RELIABILITY:
++- Never shoot if hasTarget() is false
++- Never shoot if RPM tolerance not met
++- Never shoot if hood angle tolerance not met
++- All three checks must pass simultaneously
++
++Build must pass after every single file: ./gradlew build
++TASKEOF
+
+# 2026-03-15 19:43:02.627486
++cat > ~/task.md << 'TASKEOF'
++FALLBACK RULES:
++- If any URL returns 404 or times out after 30 seconds, use the 2025 version instead
++- If Phoenix6-frc2026 does not exist, use Phoenix6-frc2025-latest.json
++- Never wait more than 30 seconds on any single URL
++- If a library version is unavailable, use the most recent available version
++- Do not stop and ask — just pivot to the fallback automatically
++
++IMPORTANT - USE THESE EXACT LIBRARY VERSIONS:
++- WPILib 2026 (latest 2026 season release)
++- Phoenix 6 version 26.x.x (CTRE 2026)
++- Limelight use NT4 NetworkTables API
++- All vendordep JSON files must use 2026 URLs
++
++VENDORDEP URLS TO USE:
++- Phoenix 6: https://maven.ctr-electronics.com/release/com/ctre/phoenix6/latest/Phoenix6-frc2026-latest.json
++- WPILib is built in, do not add as vendordep
++
++Do NOT use any 2023, 2024, or 2025 syntax. Use only 2026 APIs.
++
++Build a complete FRC shooter system. Work through these files ONE AT A TIME.
++After each file compiles cleanly do: git add . && git commit -m "complete: [filename]" && git push
++Never skip ahead.
++
++FILE ORDER:
++1. SKIP — Phoenix6.json already created manually
++2. Constants.java — all CAN IDs, PID values, interpolation table, physical measurements
++3. subsystems/LimelightSubsystem.java — Limelight 4 via NT4, distance calc, rolling average filter
++4. subsystems/ShooterSubsystem.java — Kraken X60 via Phoenix 6, MotionMagicVelocityVoltage, 250Hz signals
++5. subsystems/HoodSubsystem.java — Falcon 500 via Phoenix 6, MotionMagicPositionVoltage, 25:1 gear ratio
++6. subsystems/DriveSubsystem.java — Pigeon 2.0 via Phoenix 6 for robot rotation
++7. commands/RotateToTargetCommand.java — PID on Limelight tx, ends within 1 degree for 0.1 seconds
++8. commands/PrepareToShootCommand.java — sets RPS and hood angle from distance interpolation table
++9. commands/WaitForShooterReadyCommand.java — waits for RPS within 1 RPS and hood within 1 degree, 2 second timeout
++10. commands/ShootCommand.java — fires only if shooter and hood are both ready
++11. RobotContainer.java — wires everything together, full shoot sequence button binding
++
++SHOOTER REQUIREMENTS:
++- Kraken X60 via TalonFX Phoenix 6 2026
++- MotionMagicVelocityVoltage for smooth consistent spin-up
++- kS, kV, kA feedforward in Constants.java
++- Target RPS from interpolation table based on Limelight distance
++- Ready when RPS within +/- 1 RPS for 0.1 seconds debounced
++- StatusSignal at 250Hz for minimal shot-to-shot variation
++- Never use open loop percent output
++
++HOOD REQUIREMENTS:
++- Falcon 500 via TalonFX Phoenix 6 2026
++- MotionMagicPositionVoltage for smooth precise movement
++- 25:1 gear ratio accounted for in sensor position conversion
++- Angle from same interpolation table as shooter RPS
++- Soft limits on TalonFX to prevent over-extension
++- Ready when within 1 degree of target
++
++LIMELIGHT REQUIREMENTS:
++- NT4 NetworkTables API, table name from Constants
++- tx, ty, tv signals
++- Distance calculated from ty, camera height, target height, camera angle
++- Rolling average of 5 distance samples to prevent jitter
++- Never use distance if tv is false
++
++AUTO-ALIGN REQUIREMENTS:
++- PID controller on Limelight tx error
++- Pigeon 2.0 for rotation stability
++- Ends when tx within 1 degree for 0.1 seconds
++- Does nothing if no valid target
++
++INTERPOLATION TABLE:
++- At least 6 distance/RPS/angle data points from 1.5m to 6m
++- Use TreeMap for automatic sorting by distance
++
++COMMENTS REQUIREMENT:
++- Every class must have a Javadoc comment explaining what it does
++- Every method must have a Javadoc comment
++- Every constant must have an inline comment with units and tuning advice
++- Every PID gain must comment: increase to X, decrease to Y
++- All non-obvious math must have step-by-step comments
++
++TUNING REQUIREMENT:
++- All tunable values in Constants.java only, never hardcoded elsewhere
++- Group Constants.java into clearly labeled sections:
++    // ── SHOOTER TUNING ──
++    // ── HOOD TUNING ──
++    // ── LIMELIGHT TUNING ──
++    // ── AUTO-ALIGN TUNING ──
++    // ── INTERPOLATION TABLE ──
++- Every tunable value must have a comment showing units and safe tuning range
++- When TUNING_MODE = true in Constants, read all PID values live from SmartDashboard
++
++RELIABILITY:
++- Never shoot if hasTarget() is false
++- Never shoot if RPM tolerance not met
++- Never shoot if hood angle tolerance not met
++- All three checks must pass simultaneously
++
++Build must pass after every single file: ./gradlew build
++TASKEOF
+
+# 2026-03-15 19:43:02.627815
++cat > ~/task.md << 'TASKEOF'
++FALLBACK RULES:
++- If any URL returns 404 or times out after 30 seconds, use the 2025 version instead
++- If Phoenix6-frc2026 does not exist, use Phoenix6-frc2025-latest.json
++- Never wait more than 30 seconds on any single URL
++- If a library version is unavailable, use the most recent available version
++- Do not stop and ask — just pivot to the fallback automatically
++
++IMPORTANT - USE THESE EXACT LIBRARY VERSIONS:
++- WPILib 2026 (latest 2026 season release)
++- Phoenix 6 version 26.x.x (CTRE 2026)
++- Limelight use NT4 NetworkTables API
++- All vendordep JSON files must use 2026 URLs
++
++VENDORDEP URLS TO USE:
++- Phoenix 6: https://maven.ctr-electronics.com/release/com/ctre/phoenix6/latest/Phoenix6-frc2026-latest.json
++- WPILib is built in, do not add as vendordep
++
++Do NOT use any 2023, 2024, or 2025 syntax. Use only 2026 APIs.
++
++Build a complete FRC shooter system. Work through these files ONE AT A TIME.
++After each file compiles cleanly do: git add . && git commit -m "complete: [filename]" && git push
++Never skip ahead.
++
++FILE ORDER:
++1. SKIP — Phoenix6.json already created manually
++2. Constants.java — all CAN IDs, PID values, interpolation table, physical measurements
++3. subsystems/LimelightSubsystem.java — Limelight 4 via NT4, distance calc, rolling average filter
++4. subsystems/ShooterSubsystem.java — Kraken X60 via Phoenix 6, MotionMagicVelocityVoltage, 250Hz signals
++5. subsystems/HoodSubsystem.java — Falcon 500 via Phoenix 6, MotionMagicPositionVoltage, 25:1 gear ratio
++6. subsystems/DriveSubsystem.java — Pigeon 2.0 via Phoenix 6 for robot rotation
++7. commands/RotateToTargetCommand.java — PID on Limelight tx, ends within 1 degree for 0.1 seconds
++8. commands/PrepareToShootCommand.java — sets RPS and hood angle from distance interpolation table
++9. commands/WaitForShooterReadyCommand.java — waits for RPS within 1 RPS and hood within 1 degree, 2 second timeout
++10. commands/ShootCommand.java — fires only if shooter and hood are both ready
++11. RobotContainer.java — wires everything together, full shoot sequence button binding
++
++SHOOTER REQUIREMENTS:
++- Kraken X60 via TalonFX Phoenix 6 2026
++- MotionMagicVelocityVoltage for smooth consistent spin-up
++- kS, kV, kA feedforward in Constants.java
++- Target RPS from interpolation table based on Limelight distance
++- Ready when RPS within +/- 1 RPS for 0.1 seconds debounced
++- StatusSignal at 250Hz for minimal shot-to-shot variation
++- Never use open loop percent output
++
++HOOD REQUIREMENTS:
++- Falcon 500 via TalonFX Phoenix 6 2026
++- MotionMagicPositionVoltage for smooth precise movement
++- 25:1 gear ratio accounted for in sensor position conversion
++- Angle from same interpolation table as shooter RPS
++- Soft limits on TalonFX to prevent over-extension
++- Ready when within 1 degree of target
++
++LIMELIGHT REQUIREMENTS:
++- NT4 NetworkTables API, table name from Constants
++- tx, ty, tv signals
++- Distance calculated from ty, camera height, target height, camera angle
++- Rolling average of 5 distance samples to prevent jitter
++- Never use distance if tv is false
++
++AUTO-ALIGN REQUIREMENTS:
++- PID controller on Limelight tx error
++- Pigeon 2.0 for rotation stability
++- Ends when tx within 1 degree for 0.1 seconds
++- Does nothing if no valid target
++
++INTERPOLATION TABLE:
++- At least 6 distance/RPS/angle data points from 1.5m to 6m
++- Use TreeMap for automatic sorting by distance
++
++COMMENTS REQUIREMENT:
++- Every class must have a Javadoc comment explaining what it does
++- Every method must have a Javadoc comment
++- Every constant must have an inline comment with units and tuning advice
++- Every PID gain must comment: increase to X, decrease to Y
++- All non-obvious math must have step-by-step comments
++
++TUNING REQUIREMENT:
++- All tunable values in Constants.java only, never hardcoded elsewhere
++- Group Constants.java into clearly labeled sections:
++    // ── SHOOTER TUNING ──
++    // ── HOOD TUNING ──
++    // ── LIMELIGHT TUNING ──
++    // ── AUTO-ALIGN TUNING ──
++    // ── INTERPOLATION TABLE ──
++- Every tunable value must have a comment showing units and safe tuning range
++- When TUNING_MODE = true in Constants, read all PID values live from SmartDashboard
++
++RELIABILITY:
++- Never shoot if hasTarget() is false
++- Never shoot if RPM tolerance not met
++- Never shoot if hood angle tolerance not met
++- All three checks must pass simultaneously
++
++Build must pass after every single file: ./gradlew build
++TASKEOF
+
+# 2026-03-15 21:48:01.727759
++cat > ~/task.md << 'TASKEOF'
++FALLBACK RULES:
++- If any URL returns 404 or times out after 30 seconds, use the 2025 version instead
++- If Phoenix6-frc2026 does not exist, use Phoenix6-frc2025-latest.json
++- Never wait more than 30 seconds on any single URL
++- If a library version is unavailable, use the most recent available version
++- Do not stop and ask — just pivot to the fallback automatically
++
++IMPORTANT - USE THESE EXACT LIBRARY VERSIONS:
++- WPILib 2026 (latest 2026 season release)
++- Phoenix 6 version 26.x.x (CTRE 2026)
++- Limelight use NT4 NetworkTables API
++- All vendordep JSON files must use 2026 URLs
++
++VENDORDEP URLS TO USE:
++- Phoenix 6: https://maven.ctr-electronics.com/release/com/ctre/phoenix6/latest/Phoenix6-frc2026-latest.json
++- WPILib is built in, do not add as vendordep
++
++Do NOT use any 2023, 2024, or 2025 syntax. Use only 2026 APIs.
++
++Build a complete FRC shooter system. Work through these files ONE AT A TIME.
++After each file compiles cleanly do: git add . && git commit -m "complete: [filename]" && git push
++Never skip ahead.
++
++FILE ORDER:
++1. SKIP — Phoenix6.json already created manually
++2. Constants.java — all CAN IDs, PID values, interpolation table, physical measurements
++3. subsystems/LimelightSubsystem.java — Limelight 4 via NT4, distance calc, rolling average filter
++4. subsystems/ShooterSubsystem.java — Kraken X60 via Phoenix 6, MotionMagicVelocityVoltage, 250Hz signals
++5. subsystems/HoodSubsystem.java — Falcon 500 via Phoenix 6, MotionMagicPositionVoltage, 25:1 gear ratio
++6. subsystems/DriveSubsystem.java — Pigeon 2.0 via Phoenix 6 for robot rotation
++7. commands/RotateToTargetCommand.java — PID on Limelight tx, ends within 1 degree for 0.1 seconds
++8. commands/PrepareToShootCommand.java — sets RPS and hood angle from distance interpolation table
++9. commands/WaitForShooterReadyCommand.java — waits for RPS within 1 RPS and hood within 1 degree, 2 second timeout
++10. commands/ShootCommand.java — fires only if shooter and hood are both ready
++11. RobotContainer.java — wires everything together, full shoot sequence button binding
++
++SHOOTER REQUIREMENTS:
++- Kraken X60 via TalonFX Phoenix 6 2026
++- MotionMagicVelocityVoltage for smooth consistent spin-up
++- kS, kV, kA feedforward in Constants.java
++- Target RPS from interpolation table based on Limelight distance
++- Ready when RPS within +/- 1 RPS for 0.1 seconds debounced
++- StatusSignal at 250Hz for minimal shot-to-shot variation
++- Never use open loop percent output
++
++HOOD REQUIREMENTS:
++- Falcon 500 via TalonFX Phoenix 6 2026
++- MotionMagicPositionVoltage for smooth precise movement
++- 25:1 gear ratio accounted for in sensor position conversion
++- Angle from same interpolation table as shooter RPS
++- Soft limits on TalonFX to prevent over-extension
++- Ready when within 1 degree of target
++
++LIMELIGHT REQUIREMENTS:
++- NT4 NetworkTables API, table name from Constants
++- tx, ty, tv signals
++- Distance calculated from ty, camera height, target height, camera angle
++- Rolling average of 5 distance samples to prevent jitter
++- Never use distance if tv is false
++
++AUTO-ALIGN REQUIREMENTS:
++- PID controller on Limelight tx error
++- Pigeon 2.0 for rotation stability
++- Ends when tx within 1 degree for 0.1 seconds
++- Does nothing if no valid target
++
++INTERPOLATION TABLE:
++- At least 6 distance/RPS/angle data points from 1.5m to 6m
++- Use TreeMap for automatic sorting by distance
++
++COMMENTS REQUIREMENT:
++- Every class must have a Javadoc comment explaining what it does
++- Every method must have a Javadoc comment
++- Every constant must have an inline comment with units and tuning advice
++- Every PID gain must comment: increase to X, decrease to Y
++- All non-obvious math must have step-by-step comments
++
++TUNING REQUIREMENT:
++- All tunable values in Constants.java only, never hardcoded elsewhere
++- Group Constants.java into clearly labeled sections:
++    // ── SHOOTER TUNING ──
++    // ── HOOD TUNING ──
++    // ── LIMELIGHT TUNING ──
++    // ── AUTO-ALIGN TUNING ──
++    // ── INTERPOLATION TABLE ──
++- Every tunable value must have a comment showing units and safe tuning range
++- When TUNING_MODE = true in Constants, read all PID values live from SmartDashboard
++
++RELIABILITY:
++- Never shoot if hasTarget() is false
++- Never shoot if RPM tolerance not met
++- Never shoot if hood angle tolerance not met
++- All three checks must pass simultaneously
++
++Build must pass after every single file: ./gradlew build
++TASKEOF
+
+# 2026-03-15 21:48:01.728426
++cat > ~/task.md << 'TASKEOF'
++FALLBACK RULES:
++- If any URL returns 404 or times out after 30 seconds, use the 2025 version instead
++- If Phoenix6-frc2026 does not exist, use Phoenix6-frc2025-latest.json
++- Never wait more than 30 seconds on any single URL
++- If a library version is unavailable, use the most recent available version
++- Do not stop and ask — just pivot to the fallback automatically
++
++IMPORTANT - USE THESE EXACT LIBRARY VERSIONS:
++- WPILib 2026 (latest 2026 season release)
++- Phoenix 6 version 26.x.x (CTRE 2026)
++- Limelight use NT4 NetworkTables API
++- All vendordep JSON files must use 2026 URLs
++
++VENDORDEP URLS TO USE:
++- Phoenix 6: https://maven.ctr-electronics.com/release/com/ctre/phoenix6/latest/Phoenix6-frc2026-latest.json
++- WPILib is built in, do not add as vendordep
++
++Do NOT use any 2023, 2024, or 2025 syntax. Use only 2026 APIs.
++
++Build a complete FRC shooter system. Work through these files ONE AT A TIME.
++After each file compiles cleanly do: git add . && git commit -m "complete: [filename]" && git push
++Never skip ahead.
++
++FILE ORDER:
++1. SKIP — Phoenix6.json already created manually
++2. Constants.java — all CAN IDs, PID values, interpolation table, physical measurements
++3. subsystems/LimelightSubsystem.java — Limelight 4 via NT4, distance calc, rolling average filter
++4. subsystems/ShooterSubsystem.java — Kraken X60 via Phoenix 6, MotionMagicVelocityVoltage, 250Hz signals
++5. subsystems/HoodSubsystem.java — Falcon 500 via Phoenix 6, MotionMagicPositionVoltage, 25:1 gear ratio
++6. subsystems/DriveSubsystem.java — Pigeon 2.0 via Phoenix 6 for robot rotation
++7. commands/RotateToTargetCommand.java — PID on Limelight tx, ends within 1 degree for 0.1 seconds
++8. commands/PrepareToShootCommand.java — sets RPS and hood angle from distance interpolation table
++9. commands/WaitForShooterReadyCommand.java — waits for RPS within 1 RPS and hood within 1 degree, 2 second timeout
++10. commands/ShootCommand.java — fires only if shooter and hood are both ready
++11. RobotContainer.java — wires everything together, full shoot sequence button binding
++
++SHOOTER REQUIREMENTS:
++- Kraken X60 via TalonFX Phoenix 6 2026
++- MotionMagicVelocityVoltage for smooth consistent spin-up
++- kS, kV, kA feedforward in Constants.java
++- Target RPS from interpolation table based on Limelight distance
++- Ready when RPS within +/- 1 RPS for 0.1 seconds debounced
++- StatusSignal at 250Hz for minimal shot-to-shot variation
++- Never use open loop percent output
++
++HOOD REQUIREMENTS:
++- Falcon 500 via TalonFX Phoenix 6 2026
++- MotionMagicPositionVoltage for smooth precise movement
++- 25:1 gear ratio accounted for in sensor position conversion
++- Angle from same interpolation table as shooter RPS
++- Soft limits on TalonFX to prevent over-extension
++- Ready when within 1 degree of target
++
++LIMELIGHT REQUIREMENTS:
++- NT4 NetworkTables API, table name from Constants
++- tx, ty, tv signals
++- Distance calculated from ty, camera height, target height, camera angle
++- Rolling average of 5 distance samples to prevent jitter
++- Never use distance if tv is false
++
++AUTO-ALIGN REQUIREMENTS:
++- PID controller on Limelight tx error
++- Pigeon 2.0 for rotation stability
++- Ends when tx within 1 degree for 0.1 seconds
++- Does nothing if no valid target
++
++INTERPOLATION TABLE:
++- At least 6 distance/RPS/angle data points from 1.5m to 6m
++- Use TreeMap for automatic sorting by distance
++
++COMMENTS REQUIREMENT:
++- Every class must have a Javadoc comment explaining what it does
++- Every method must have a Javadoc comment
++- Every constant must have an inline comment with units and tuning advice
++- Every PID gain must comment: increase to X, decrease to Y
++- All non-obvious math must have step-by-step comments
++
++TUNING REQUIREMENT:
++- All tunable values in Constants.java only, never hardcoded elsewhere
++- Group Constants.java into clearly labeled sections:
++    // ── SHOOTER TUNING ──
++    // ── HOOD TUNING ──
++    // ── LIMELIGHT TUNING ──
++    // ── AUTO-ALIGN TUNING ──
++    // ── INTERPOLATION TABLE ──
++- Every tunable value must have a comment showing units and safe tuning range
++- When TUNING_MODE = true in Constants, read all PID values live from SmartDashboard
++
++RELIABILITY:
++- Never shoot if hasTarget() is false
++- Never shoot if RPM tolerance not met
++- Never shoot if hood angle tolerance not met
++- All three checks must pass simultaneously
++
++Build must pass after every single file: ./gradlew build
++TASKEOF
+
+# 2026-03-15 23:57:15.625188
++cat > ~/task.md << 'TASKEOF'
++FALLBACK RULES:
++- If any URL returns 404 or times out after 30 seconds, use the 2025 version instead
++- If Phoenix6-frc2026 does not exist, use Phoenix6-frc2025-latest.json
++- Never wait more than 30 seconds on any single URL
++- If a library version is unavailable, use the most recent available version
++- Do not stop and ask — just pivot to the fallback automatically
++
++IMPORTANT - USE THESE EXACT LIBRARY VERSIONS:
++- WPILib 2026 (latest 2026 season release)
++- Phoenix 6 version 26.x.x (CTRE 2026)
++- Limelight use NT4 NetworkTables API
++- All vendordep JSON files must use 2026 URLs
++
++VENDORDEP URLS TO USE:
++- Phoenix 6: https://maven.ctr-electronics.com/release/com/ctre/phoenix6/latest/Phoenix6-frc2026-latest.json
++- WPILib is built in, do not add as vendordep
++
++Do NOT use any 2023, 2024, or 2025 syntax. Use only 2026 APIs.
++
++Build a complete FRC shooter system. Work through these files ONE AT A TIME.
++After each file compiles cleanly do: git add . && git commit -m "complete: [filename]" && git push
++Never skip ahead.
++
++FILE ORDER:
++1. vendordeps/Phoenix6.json — search online for latest Phoenix 6 2026 vendordep, fallback to 2025 if not found
++2. Constants.java — all CAN IDs, PID values, interpolation table, physical measurements
++3. subsystems/LimelightSubsystem.java — Limelight 4 via NT4, distance calc, rolling average filter
++4. subsystems/ShooterSubsystem.java — Kraken X60 via Phoenix 6, MotionMagicVelocityVoltage, 250Hz signals
++5. subsystems/HoodSubsystem.java — Falcon 500 via Phoenix 6, MotionMagicPositionVoltage, 25:1 gear ratio
++6. subsystems/DriveSubsystem.java — Pigeon 2.0 via Phoenix 6 for robot rotation
++7. commands/RotateToTargetCommand.java — PID on Limelight tx, ends within 1 degree for 0.1 seconds
++8. commands/PrepareToShootCommand.java — sets RPS and hood angle from distance interpolation table
++9. commands/WaitForShooterReadyCommand.java — waits for RPS within 1 RPS and hood within 1 degree, 2 second timeout
++10. commands/ShootCommand.java — fires only if shooter and hood are both ready
++11. RobotContainer.java — wires everything together, full shoot sequence button binding
++
++SHOOTER REQUIREMENTS:
++- Kraken X60 via TalonFX Phoenix 6 2026
++- MotionMagicVelocityVoltage for smooth consistent spin-up
++- kS, kV, kA feedforward in Constants.java
++- Target RPS from interpolation table based on Limelight distance
++- Ready when RPS within +/- 1 RPS for 0.1 seconds debounced
++- StatusSignal at 250Hz for minimal shot-to-shot variation
++- Never use open loop percent output
++
++HOOD REQUIREMENTS:
++- Falcon 500 via TalonFX Phoenix 6 2026
++- MotionMagicPositionVoltage for smooth precise movement
++- 25:1 gear ratio accounted for in sensor position conversion
++- Angle from same interpolation table as shooter RPS
++- Soft limits on TalonFX to prevent over-extension
++- Ready when within 1 degree of target
++
++LIMELIGHT REQUIREMENTS:
++- NT4 NetworkTables API, table name from Constants
++- tx, ty, tv signals
++- Distance calculated from ty, camera height, target height, camera angle
++- Rolling average of 5 distance samples to prevent jitter
++- Never use distance if tv is false
++
++AUTO-ALIGN REQUIREMENTS:
++- PID controller on Limelight tx error
++- Pigeon 2.0 for rotation stability
++- Ends when tx within 1 degree for 0.1 seconds
++- Does nothing if no valid target
++
++INTERPOLATION TABLE:
++- At least 6 distance/RPS/angle data points from 1.5m to 6m
++- Use TreeMap for automatic sorting by distance
++
++COMMENTS REQUIREMENT:
++- Every class must have a Javadoc comment explaining what it does
++- Every method must have a Javadoc comment
++- Every constant must have an inline comment with units and tuning advice
++- Every PID gain must comment: increase to X, decrease to Y
++- All non-obvious math must have step-by-step comments
++
++TUNING REQUIREMENT:
++- All tunable values in Constants.java only, never hardcoded elsewhere
++- Group Constants.java into clearly labeled sections:
++    // ── SHOOTER TUNING ──
++    // ── HOOD TUNING ──
++    // ── LIMELIGHT TUNING ──
++    // ── AUTO-ALIGN TUNING ──
++    // ── INTERPOLATION TABLE ──
++- Every tunable value must have a comment showing units and safe tuning range
++- When TUNING_MODE = true in Constants, read all PID values live from SmartDashboard
++
++RELIABILITY:
++- Never shoot if hasTarget() is false
++- Never shoot if RPM tolerance not met
++- Never shoot if hood angle tolerance not met
++- All three checks must pass simultaneously
++
++Build must pass after every single file: ./gradlew build
++TASKEOF
+
+# 2026-03-15 23:57:15.626013
++cat > ~/task.md << 'TASKEOF'
++FALLBACK RULES:
++- If any URL returns 404 or times out after 30 seconds, use the 2025 version instead
++- If Phoenix6-frc2026 does not exist, use Phoenix6-frc2025-latest.json
++- Never wait more than 30 seconds on any single URL
++- If a library version is unavailable, use the most recent available version
++- Do not stop and ask — just pivot to the fallback automatically
++
++IMPORTANT - USE THESE EXACT LIBRARY VERSIONS:
++- WPILib 2026 (latest 2026 season release)
++- Phoenix 6 version 26.x.x (CTRE 2026)
++- Limelight use NT4 NetworkTables API
++- All vendordep JSON files must use 2026 URLs
++
++VENDORDEP URLS TO USE:
++- Phoenix 6: https://maven.ctr-electronics.com/release/com/ctre/phoenix6/latest/Phoenix6-frc2026-latest.json
++- WPILib is built in, do not add as vendordep
++
++Do NOT use any 2023, 2024, or 2025 syntax. Use only 2026 APIs.
++
++Build a complete FRC shooter system. Work through these files ONE AT A TIME.
++After each file compiles cleanly do: git add . && git commit -m "complete: [filename]" && git push
++Never skip ahead.
++
++FILE ORDER:
++1. vendordeps/Phoenix6.json — search online for latest Phoenix 6 2026 vendordep, fallback to 2025 if not found
++2. Constants.java — all CAN IDs, PID values, interpolation table, physical measurements
++3. subsystems/LimelightSubsystem.java — Limelight 4 via NT4, distance calc, rolling average filter
++4. subsystems/ShooterSubsystem.java — Kraken X60 via Phoenix 6, MotionMagicVelocityVoltage, 250Hz signals
++5. subsystems/HoodSubsystem.java — Falcon 500 via Phoenix 6, MotionMagicPositionVoltage, 25:1 gear ratio
++6. subsystems/DriveSubsystem.java — Pigeon 2.0 via Phoenix 6 for robot rotation
++7. commands/RotateToTargetCommand.java — PID on Limelight tx, ends within 1 degree for 0.1 seconds
++8. commands/PrepareToShootCommand.java — sets RPS and hood angle from distance interpolation table
++9. commands/WaitForShooterReadyCommand.java — waits for RPS within 1 RPS and hood within 1 degree, 2 second timeout
++10. commands/ShootCommand.java — fires only if shooter and hood are both ready
++11. RobotContainer.java — wires everything together, full shoot sequence button binding
++
++SHOOTER REQUIREMENTS:
++- Kraken X60 via TalonFX Phoenix 6 2026
++- MotionMagicVelocityVoltage for smooth consistent spin-up
++- kS, kV, kA feedforward in Constants.java
++- Target RPS from interpolation table based on Limelight distance
++- Ready when RPS within +/- 1 RPS for 0.1 seconds debounced
++- StatusSignal at 250Hz for minimal shot-to-shot variation
++- Never use open loop percent output
++
++HOOD REQUIREMENTS:
++- Falcon 500 via TalonFX Phoenix 6 2026
++- MotionMagicPositionVoltage for smooth precise movement
++- 25:1 gear ratio accounted for in sensor position conversion
++- Angle from same interpolation table as shooter RPS
++- Soft limits on TalonFX to prevent over-extension
++- Ready when within 1 degree of target
++
++LIMELIGHT REQUIREMENTS:
++- NT4 NetworkTables API, table name from Constants
++- tx, ty, tv signals
++- Distance calculated from ty, camera height, target height, camera angle
++- Rolling average of 5 distance samples to prevent jitter
++- Never use distance if tv is false
++
++AUTO-ALIGN REQUIREMENTS:
++- PID controller on Limelight tx error
++- Pigeon 2.0 for rotation stability
++- Ends when tx within 1 degree for 0.1 seconds
++- Does nothing if no valid target
++
++INTERPOLATION TABLE:
++- At least 6 distance/RPS/angle data points from 1.5m to 6m
++- Use TreeMap for automatic sorting by distance
++
++COMMENTS REQUIREMENT:
++- Every class must have a Javadoc comment explaining what it does
++- Every method must have a Javadoc comment
++- Every constant must have an inline comment with units and tuning advice
++- Every PID gain must comment: increase to X, decrease to Y
++- All non-obvious math must have step-by-step comments
++
++TUNING REQUIREMENT:
++- All tunable values in Constants.java only, never hardcoded elsewhere
++- Group Constants.java into clearly labeled sections:
++    // ── SHOOTER TUNING ──
++    // ── HOOD TUNING ──
++    // ── LIMELIGHT TUNING ──
++    // ── AUTO-ALIGN TUNING ──
++    // ── INTERPOLATION TABLE ──
++- Every tunable value must have a comment showing units and safe tuning range
++- When TUNING_MODE = true in Constants, read all PID values live from SmartDashboard
++
++RELIABILITY:
++- Never shoot if hasTarget() is false
++- Never shoot if RPM tolerance not met
++- Never shoot if hood angle tolerance not met
++- All three checks must pass simultaneously
++
++Build must pass after every single file: ./gradlew build
++TASKEOF
+
+# 2026-03-16 00:01:58.371704
++cat > ~/task.md << 'TASKEOF'
++FALLBACK RULES:
++- If any URL returns 404 or times out after 30 seconds, use the 2025 version instead
++- If Phoenix6-frc2026 does not exist, use Phoenix6-frc2025-latest.json
++- Never wait more than 30 seconds on any single URL
++- If a library version is unavailable, use the most recent available version
++- Do not stop and ask — just pivot to the fallback automatically
++
++IMPORTANT - USE THESE EXACT LIBRARY VERSIONS:
++- WPILib 2026 (latest 2026 season release)
++- Phoenix 6 version 26.x.x (CTRE 2026)
++- Limelight use NT4 NetworkTables API
++- All vendordep JSON files must use 2026 URLs
++
++VENDORDEP URLS TO USE:
++- Phoenix 6: https://maven.ctr-electronics.com/release/com/ctre/phoenix6/latest/Phoenix6-frc2026-latest.json
++- WPILib is built in, do not add as vendordep
++
++Do NOT use any 2023, 2024, or 2025 syntax. Use only 2026 APIs.
++
++Build a complete FRC shooter system. Work through these files ONE AT A TIME.
++After each file compiles cleanly do: git add . && git commit -m "complete: [filename]" && git push
++Never skip ahead.
++
++FILE ORDER:
++1. vendordeps/Phoenix6.json — search online for latest Phoenix 6 2026 vendordep, fallback to 2025 if not found
++2. Constants.java — all CAN IDs, PID values, interpolation table, physical measurements
++3. subsystems/LimelightSubsystem.java — Limelight 4 via NT4, distance calc, rolling average filter
++4. subsystems/ShooterSubsystem.java — Kraken X60 via Phoenix 6, MotionMagicVelocityVoltage, 250Hz signals
++5. subsystems/HoodSubsystem.java — Falcon 500 via Phoenix 6, MotionMagicPositionVoltage, 25:1 gear ratio
++6. subsystems/DriveSubsystem.java — Pigeon 2.0 via Phoenix 6 for robot rotation
++7. commands/RotateToTargetCommand.java — PID on Limelight tx, ends within 1 degree for 0.1 seconds
++8. commands/PrepareToShootCommand.java — sets RPS and hood angle from distance interpolation table
++9. commands/WaitForShooterReadyCommand.java — waits for RPS within 1 RPS and hood within 1 degree, 2 second timeout
++10. commands/ShootCommand.java — fires only if shooter and hood are both ready
++11. RobotContainer.java — wires everything together, full shoot sequence button binding
++
++SHOOTER REQUIREMENTS:
++- Kraken X60 via TalonFX Phoenix 6 2026
++- MotionMagicVelocityVoltage for smooth consistent spin-up
++- kS, kV, kA feedforward in Constants.java
++- Target RPS from interpolation table based on Limelight distance
++- Ready when RPS within +/- 1 RPS for 0.1 seconds debounced
++- StatusSignal at 250Hz for minimal shot-to-shot variation
++- Never use open loop percent output
++
++HOOD REQUIREMENTS:
++- Falcon 500 via TalonFX Phoenix 6 2026
++- MotionMagicPositionVoltage for smooth precise movement
++- 25:1 gear ratio accounted for in sensor position conversion
++- Angle from same interpolation table as shooter RPS
++- Soft limits on TalonFX to prevent over-extension
++- Ready when within 1 degree of target
++
++LIMELIGHT REQUIREMENTS:
++- NT4 NetworkTables API, table name from Constants
++- tx, ty, tv signals
++- Distance calculated from ty, camera height, target height, camera angle
++- Rolling average of 5 distance samples to prevent jitter
++- Never use distance if tv is false
++
++AUTO-ALIGN REQUIREMENTS:
++- PID controller on Limelight tx error
++- Pigeon 2.0 for rotation stability
++- Ends when tx within 1 degree for 0.1 seconds
++- Does nothing if no valid target
++
++INTERPOLATION TABLE:
++- At least 6 distance/RPS/angle data points from 1.5m to 6m
++- Use TreeMap for automatic sorting by distance
++
++COMMENTS REQUIREMENT:
++- Every class must have a Javadoc comment explaining what it does
++- Every method must have a Javadoc comment
++- Every constant must have an inline comment with units and tuning advice
++- Every PID gain must comment: increase to X, decrease to Y
++- All non-obvious math must have step-by-step comments
++
++TUNING REQUIREMENT:
++- All tunable values in Constants.java only, never hardcoded elsewhere
++- Group Constants.java into clearly labeled sections:
++    // ── SHOOTER TUNING ──
++    // ── HOOD TUNING ──
++    // ── LIMELIGHT TUNING ──
++    // ── AUTO-ALIGN TUNING ──
++    // ── INTERPOLATION TABLE ──
++- Every tunable value must have a comment showing units and safe tuning range
++- When TUNING_MODE = true in Constants, read all PID values live from SmartDashboard
++
++RELIABILITY:
++- Never shoot if hasTarget() is false
++- Never shoot if RPM tolerance not met
++- Never shoot if hood angle tolerance not met
++- All three checks must pass simultaneously
++
++Build must pass after every single file: ./gradlew build
++TASKEOF
+
+# 2026-03-16 00:01:58.371902
++cat > ~/task.md << 'TASKEOF'
++FALLBACK RULES:
++- If any URL returns 404 or times out after 30 seconds, use the 2025 version instead
++- If Phoenix6-frc2026 does not exist, use Phoenix6-frc2025-latest.json
++- Never wait more than 30 seconds on any single URL
++- If a library version is unavailable, use the most recent available version
++- Do not stop and ask — just pivot to the fallback automatically
++
++IMPORTANT - USE THESE EXACT LIBRARY VERSIONS:
++- WPILib 2026 (latest 2026 season release)
++- Phoenix 6 version 26.x.x (CTRE 2026)
++- Limelight use NT4 NetworkTables API
++- All vendordep JSON files must use 2026 URLs
++
++VENDORDEP URLS TO USE:
++- Phoenix 6: https://maven.ctr-electronics.com/release/com/ctre/phoenix6/latest/Phoenix6-frc2026-latest.json
++- WPILib is built in, do not add as vendordep
++
++Do NOT use any 2023, 2024, or 2025 syntax. Use only 2026 APIs.
++
++Build a complete FRC shooter system. Work through these files ONE AT A TIME.
++After each file compiles cleanly do: git add . && git commit -m "complete: [filename]" && git push
++Never skip ahead.
++
++FILE ORDER:
++1. vendordeps/Phoenix6.json — search online for latest Phoenix 6 2026 vendordep, fallback to 2025 if not found
++2. Constants.java — all CAN IDs, PID values, interpolation table, physical measurements
++3. subsystems/LimelightSubsystem.java — Limelight 4 via NT4, distance calc, rolling average filter
++4. subsystems/ShooterSubsystem.java — Kraken X60 via Phoenix 6, MotionMagicVelocityVoltage, 250Hz signals
++5. subsystems/HoodSubsystem.java — Falcon 500 via Phoenix 6, MotionMagicPositionVoltage, 25:1 gear ratio
++6. subsystems/DriveSubsystem.java — Pigeon 2.0 via Phoenix 6 for robot rotation
++7. commands/RotateToTargetCommand.java — PID on Limelight tx, ends within 1 degree for 0.1 seconds
++8. commands/PrepareToShootCommand.java — sets RPS and hood angle from distance interpolation table
++9. commands/WaitForShooterReadyCommand.java — waits for RPS within 1 RPS and hood within 1 degree, 2 second timeout
++10. commands/ShootCommand.java — fires only if shooter and hood are both ready
++11. RobotContainer.java — wires everything together, full shoot sequence button binding
++
++SHOOTER REQUIREMENTS:
++- Kraken X60 via TalonFX Phoenix 6 2026
++- MotionMagicVelocityVoltage for smooth consistent spin-up
++- kS, kV, kA feedforward in Constants.java
++- Target RPS from interpolation table based on Limelight distance
++- Ready when RPS within +/- 1 RPS for 0.1 seconds debounced
++- StatusSignal at 250Hz for minimal shot-to-shot variation
++- Never use open loop percent output
++
++HOOD REQUIREMENTS:
++- Falcon 500 via TalonFX Phoenix 6 2026
++- MotionMagicPositionVoltage for smooth precise movement
++- 25:1 gear ratio accounted for in sensor position conversion
++- Angle from same interpolation table as shooter RPS
++- Soft limits on TalonFX to prevent over-extension
++- Ready when within 1 degree of target
++
++LIMELIGHT REQUIREMENTS:
++- NT4 NetworkTables API, table name from Constants
++- tx, ty, tv signals
++- Distance calculated from ty, camera height, target height, camera angle
++- Rolling average of 5 distance samples to prevent jitter
++- Never use distance if tv is false
++
++AUTO-ALIGN REQUIREMENTS:
++- PID controller on Limelight tx error
++- Pigeon 2.0 for rotation stability
++- Ends when tx within 1 degree for 0.1 seconds
++- Does nothing if no valid target
++
++INTERPOLATION TABLE:
++- At least 6 distance/RPS/angle data points from 1.5m to 6m
++- Use TreeMap for automatic sorting by distance
++
++COMMENTS REQUIREMENT:
++- Every class must have a Javadoc comment explaining what it does
++- Every method must have a Javadoc comment
++- Every constant must have an inline comment with units and tuning advice
++- Every PID gain must comment: increase to X, decrease to Y
++- All non-obvious math must have step-by-step comments
++
++TUNING REQUIREMENT:
++- All tunable values in Constants.java only, never hardcoded elsewhere
++- Group Constants.java into clearly labeled sections:
++    // ── SHOOTER TUNING ──
++    // ── HOOD TUNING ──
++    // ── LIMELIGHT TUNING ──
++    // ── AUTO-ALIGN TUNING ──
++    // ── INTERPOLATION TABLE ──
++- Every tunable value must have a comment showing units and safe tuning range
++- When TUNING_MODE = true in Constants, read all PID values live from SmartDashboard
++
++RELIABILITY:
++- Never shoot if hasTarget() is false
++- Never shoot if RPM tolerance not met
++- Never shoot if hood angle tolerance not met
++- All three checks must pass simultaneously
++
++Build must pass after every single file: ./gradlew build
++TASKEOF
+
+# 2026-03-16 00:07:00.761155
++cat > ~/task.md << 'TASKEOF'
++FALLBACK RULES:
++- If any URL returns 404 or times out after 30 seconds, use the 2025 version instead
++- If Phoenix6-frc2026 does not exist, use Phoenix6-frc2025-latest.json
++- Never wait more than 30 seconds on any single URL
++- If a library version is unavailable, use the most recent available version
++- Do not stop and ask — just pivot to the fallback automatically
++
++IMPORTANT - USE THESE EXACT LIBRARY VERSIONS:
++- WPILib 2026 (latest 2026 season release)
++- Phoenix 6 version 26.x.x (CTRE 2026)
++- Limelight use NT4 NetworkTables API
++- All vendordep JSON files must use 2026 URLs
++
++VENDORDEP URLS TO USE:
++- Phoenix 6: https://maven.ctr-electronics.com/release/com/ctre/phoenix6/latest/Phoenix6-frc2026-latest.json
++- WPILib is built in, do not add as vendordep
++
++Do NOT use any 2023, 2024, or 2025 syntax. Use only 2026 APIs.
++
++Build a complete FRC shooter system. Work through these files ONE AT A TIME.
++After each file compiles cleanly do: git add . && git commit -m "complete: [filename]" && git push
++Never skip ahead.
++
++FILE ORDER:
++1. vendordeps/Phoenix6.json — search online for latest Phoenix 6 2026 vendordep, fallback to 2025 if not found
++2. Constants.java — all CAN IDs, PID values, interpolation table, physical measurements
++3. subsystems/LimelightSubsystem.java — Limelight 4 via NT4, distance calc, rolling average filter
++4. subsystems/ShooterSubsystem.java — Kraken X60 via Phoenix 6, MotionMagicVelocityVoltage, 250Hz signals
++5. subsystems/HoodSubsystem.java — Falcon 500 via Phoenix 6, MotionMagicPositionVoltage, 25:1 gear ratio
++6. subsystems/DriveSubsystem.java — Pigeon 2.0 via Phoenix 6 for robot rotation
++7. commands/RotateToTargetCommand.java — PID on Limelight tx, ends within 1 degree for 0.1 seconds
++8. commands/PrepareToShootCommand.java — sets RPS and hood angle from distance interpolation table
++9. commands/WaitForShooterReadyCommand.java — waits for RPS within 1 RPS and hood within 1 degree, 2 second timeout
++10. commands/ShootCommand.java — fires only if shooter and hood are both ready
++11. RobotContainer.java — wires everything together, full shoot sequence button binding
++
++SHOOTER REQUIREMENTS:
++- Kraken X60 via TalonFX Phoenix 6 2026
++- MotionMagicVelocityVoltage for smooth consistent spin-up
++- kS, kV, kA feedforward in Constants.java
++- Target RPS from interpolation table based on Limelight distance
++- Ready when RPS within +/- 1 RPS for 0.1 seconds debounced
++- StatusSignal at 250Hz for minimal shot-to-shot variation
++- Never use open loop percent output
++
++HOOD REQUIREMENTS:
++- Falcon 500 via TalonFX Phoenix 6 2026
++- MotionMagicPositionVoltage for smooth precise movement
++- 25:1 gear ratio accounted for in sensor position conversion
++- Angle from same interpolation table as shooter RPS
++- Soft limits on TalonFX to prevent over-extension
++- Ready when within 1 degree of target
++
++LIMELIGHT REQUIREMENTS:
++- NT4 NetworkTables API, table name from Constants
++- tx, ty, tv signals
++- Distance calculated from ty, camera height, target height, camera angle
++- Rolling average of 5 distance samples to prevent jitter
++- Never use distance if tv is false
++
++AUTO-ALIGN REQUIREMENTS:
++- PID controller on Limelight tx error
++- Pigeon 2.0 for rotation stability
++- Ends when tx within 1 degree for 0.1 seconds
++- Does nothing if no valid target
++
++INTERPOLATION TABLE:
++- At least 6 distance/RPS/angle data points from 1.5m to 6m
++- Use TreeMap for automatic sorting by distance
++
++COMMENTS REQUIREMENT:
++- Every class must have a Javadoc comment explaining what it does
++- Every method must have a Javadoc comment
++- Every constant must have an inline comment with units and tuning advice
++- Every PID gain must comment: increase to X, decrease to Y
++- All non-obvious math must have step-by-step comments
++
++TUNING REQUIREMENT:
++- All tunable values in Constants.java only, never hardcoded elsewhere
++- Group Constants.java into clearly labeled sections:
++    // ── SHOOTER TUNING ──
++    // ── HOOD TUNING ──
++    // ── LIMELIGHT TUNING ──
++    // ── AUTO-ALIGN TUNING ──
++    // ── INTERPOLATION TABLE ──
++- Every tunable value must have a comment showing units and safe tuning range
++- When TUNING_MODE = true in Constants, read all PID values live from SmartDashboard
++
++RELIABILITY:
++- Never shoot if hasTarget() is false
++- Never shoot if RPM tolerance not met
++- Never shoot if hood angle tolerance not met
++- All three checks must pass simultaneously
++
++Build must pass after every single file: ./gradlew build
++TASKEOF
+
+# 2026-03-16 00:07:00.761324
++cat > ~/task.md << 'TASKEOF'
++FALLBACK RULES:
++- If any URL returns 404 or times out after 30 seconds, use the 2025 version instead
++- If Phoenix6-frc2026 does not exist, use Phoenix6-frc2025-latest.json
++- Never wait more than 30 seconds on any single URL
++- If a library version is unavailable, use the most recent available version
++- Do not stop and ask — just pivot to the fallback automatically
++
++IMPORTANT - USE THESE EXACT LIBRARY VERSIONS:
++- WPILib 2026 (latest 2026 season release)
++- Phoenix 6 version 26.x.x (CTRE 2026)
++- Limelight use NT4 NetworkTables API
++- All vendordep JSON files must use 2026 URLs
++
++VENDORDEP URLS TO USE:
++- Phoenix 6: https://maven.ctr-electronics.com/release/com/ctre/phoenix6/latest/Phoenix6-frc2026-latest.json
++- WPILib is built in, do not add as vendordep
++
++Do NOT use any 2023, 2024, or 2025 syntax. Use only 2026 APIs.
++
++Build a complete FRC shooter system. Work through these files ONE AT A TIME.
++After each file compiles cleanly do: git add . && git commit -m "complete: [filename]" && git push
++Never skip ahead.
++
++FILE ORDER:
++1. vendordeps/Phoenix6.json — search online for latest Phoenix 6 2026 vendordep, fallback to 2025 if not found
++2. Constants.java — all CAN IDs, PID values, interpolation table, physical measurements
++3. subsystems/LimelightSubsystem.java — Limelight 4 via NT4, distance calc, rolling average filter
++4. subsystems/ShooterSubsystem.java — Kraken X60 via Phoenix 6, MotionMagicVelocityVoltage, 250Hz signals
++5. subsystems/HoodSubsystem.java — Falcon 500 via Phoenix 6, MotionMagicPositionVoltage, 25:1 gear ratio
++6. subsystems/DriveSubsystem.java — Pigeon 2.0 via Phoenix 6 for robot rotation
++7. commands/RotateToTargetCommand.java — PID on Limelight tx, ends within 1 degree for 0.1 seconds
++8. commands/PrepareToShootCommand.java — sets RPS and hood angle from distance interpolation table
++9. commands/WaitForShooterReadyCommand.java — waits for RPS within 1 RPS and hood within 1 degree, 2 second timeout
++10. commands/ShootCommand.java — fires only if shooter and hood are both ready
++11. RobotContainer.java — wires everything together, full shoot sequence button binding
++
++SHOOTER REQUIREMENTS:
++- Kraken X60 via TalonFX Phoenix 6 2026
++- MotionMagicVelocityVoltage for smooth consistent spin-up
++- kS, kV, kA feedforward in Constants.java
++- Target RPS from interpolation table based on Limelight distance
++- Ready when RPS within +/- 1 RPS for 0.1 seconds debounced
++- StatusSignal at 250Hz for minimal shot-to-shot variation
++- Never use open loop percent output
++
++HOOD REQUIREMENTS:
++- Falcon 500 via TalonFX Phoenix 6 2026
++- MotionMagicPositionVoltage for smooth precise movement
++- 25:1 gear ratio accounted for in sensor position conversion
++- Angle from same interpolation table as shooter RPS
++- Soft limits on TalonFX to prevent over-extension
++- Ready when within 1 degree of target
++
++LIMELIGHT REQUIREMENTS:
++- NT4 NetworkTables API, table name from Constants
++- tx, ty, tv signals
++- Distance calculated from ty, camera height, target height, camera angle
++- Rolling average of 5 distance samples to prevent jitter
++- Never use distance if tv is false
++
++AUTO-ALIGN REQUIREMENTS:
++- PID controller on Limelight tx error
++- Pigeon 2.0 for rotation stability
++- Ends when tx within 1 degree for 0.1 seconds
++- Does nothing if no valid target
++
++INTERPOLATION TABLE:
++- At least 6 distance/RPS/angle data points from 1.5m to 6m
++- Use TreeMap for automatic sorting by distance
++
++COMMENTS REQUIREMENT:
++- Every class must have a Javadoc comment explaining what it does
++- Every method must have a Javadoc comment
++- Every constant must have an inline comment with units and tuning advice
++- Every PID gain must comment: increase to X, decrease to Y
++- All non-obvious math must have step-by-step comments
++
++TUNING REQUIREMENT:
++- All tunable values in Constants.java only, never hardcoded elsewhere
++- Group Constants.java into clearly labeled sections:
++    // ── SHOOTER TUNING ──
++    // ── HOOD TUNING ──
++    // ── LIMELIGHT TUNING ──
++    // ── AUTO-ALIGN TUNING ──
++    // ── INTERPOLATION TABLE ──
++- Every tunable value must have a comment showing units and safe tuning range
++- When TUNING_MODE = true in Constants, read all PID values live from SmartDashboard
++
++RELIABILITY:
++- Never shoot if hasTarget() is false
++- Never shoot if RPM tolerance not met
++- Never shoot if hood angle tolerance not met
++- All three checks must pass simultaneously
++
++Build must pass after every single file: ./gradlew build
++TASKEOF
+
+# 2026-03-16 00:21:34.582248
++FALLBACK RULES:
++- If any URL returns 404 or times out after 30 seconds, use the 2025 version instead
++- If Phoenix6-frc2026 does not exist, use Phoenix6-frc2025-latest.json
++- Never wait more than 30 seconds on any single URL
++- If a library version is unavailable, use the most recent available version
++- Do not stop and ask — just pivot to the fallback automatically
++
++IMPORTANT - USE THESE EXACT LIBRARY VERSIONS:
++- WPILib 2026 (latest 2026 season release)
++- Phoenix 6 version 26.x.x (CTRE 2026)
++- Limelight use NT4 NetworkTables API
++- All vendordep JSON files must use 2026 URLs
++
++VENDORDEP URLS TO USE:
++- Phoenix 6: https://maven.ctr-electronics.com/release/com/ctre/phoenix6/latest/Phoenix6-frc2026-latest.json
++- WPILib is built in, do not add as vendordep
++
++Do NOT use any 2023, 2024, or 2025 syntax. Use only 2026 APIs.
++
++Build a complete FRC shooter system. Work through these files ONE AT A TIME.
++After each file compiles cleanly do: git add . && git commit -m "complete: [filename]" && git push
++Never skip ahead.
++
++FILE ORDER:
++1. vendordeps/Phoenix6.json — search online for latest Phoenix 6 2026 vendordep, fallback to 2025 if not found
++2. Constants.java — all CAN IDs, PID values, interpolation table, physical measurements
++3. subsystems/LimelightSubsystem.java — Limelight 4 via NT4, distance calc, rolling average filter
++4. subsystems/ShooterSubsystem.java — Kraken X60 via Phoenix 6, MotionMagicVelocityVoltage, 250Hz signals
++5. subsystems/HoodSubsystem.java — Falcon 500 via Phoenix 6, MotionMagicPositionVoltage, 25:1 gear ratio
++6. subsystems/DriveSubsystem.java — Pigeon 2.0 via Phoenix 6 for robot rotation
++7. commands/RotateToTargetCommand.java — PID on Limelight tx, ends within 1 degree for 0.1 seconds
++8. commands/PrepareToShootCommand.java — sets RPS and hood angle from distance interpolation table
++9. commands/WaitForShooterReadyCommand.java — waits for RPS within 1 RPS and hood within 1 degree, 2 second timeout
++10. commands/ShootCommand.java — fires only if shooter and hood are both ready
++11. RobotContainer.java — wires everything together, full shoot sequence button binding
++
++SHOOTER REQUIREMENTS:
++- Kraken X60 via TalonFX Phoenix 6 2026
++- MotionMagicVelocityVoltage for smooth consistent spin-up
++- kS, kV, kA feedforward in Constants.java
++- Target RPS from interpolation table based on Limelight distance
++- Ready when RPS within +/- 1 RPS for 0.1 seconds debounced
++- StatusSignal at 250Hz for minimal shot-to-shot variation
++- Never use open loop percent output
++
++HOOD REQUIREMENTS:
++- Falcon 500 via TalonFX Phoenix 6 2026
++- MotionMagicPositionVoltage for smooth precise movement
++- 25:1 gear ratio accounted for in sensor position conversion
++- Angle from same interpolation table as shooter RPS
++- Soft limits on TalonFX to prevent over-extension
++- Ready when within 1 degree of target
++
++LIMELIGHT REQUIREMENTS:
++- NT4 NetworkTables API, table name from Constants
++- tx, ty, tv signals
++- Distance calculated from ty, camera height, target height, camera angle
++- Rolling average of 5 distance samples to prevent jitter
++- Never use distance if tv is false
++
++AUTO-ALIGN REQUIREMENTS:
++- PID controller on Limelight tx error
++- Pigeon 2.0 for rotation stability
++- Ends when tx within 1 degree for 0.1 seconds
++- Does nothing if no valid target
++
++INTERPOLATION TABLE:
++- At least 6 distance/RPS/angle data points from 1.5m to 6m
++- Use TreeMap for automatic sorting by distance
++
++COMMENTS REQUIREMENT:
++- Every class must have a Javadoc comment explaining what it does
++- Every method must have a Javadoc comment
++- Every constant must have an inline comment with units and tuning advice
++- Every PID gain must comment: increase to X, decrease to Y
++- All non-obvious math must have step-by-step comments
++
++TUNING REQUIREMENT:
++- All tunable values in Constants.java only, never hardcoded elsewhere
++- Group Constants.java into clearly labeled sections:
++    // ── SHOOTER TUNING ──
++    // ── HOOD TUNING ──
++    // ── LIMELIGHT TUNING ──
++    // ── AUTO-ALIGN TUNING ──
++    // ── INTERPOLATION TABLE ──
++- Every tunable value must have a comment showing units and safe tuning range
++- When TUNING_MODE = true in Constants, read all PID values live from SmartDashboard
++
++RELIABILITY:
++- Never shoot if hasTarget() is false
++- Never shoot if RPM tolerance not met
++- Never shoot if hood angle tolerance not met
++- All three checks must pass simultaneously
++
++Build must pass after every single file: ./gradlew build
+
+# 2026-03-16 00:21:34.582602
++FALLBACK RULES:
++- If any URL returns 404 or times out after 30 seconds, use the 2025 version instead
++- If Phoenix6-frc2026 does not exist, use Phoenix6-frc2025-latest.json
++- Never wait more than 30 seconds on any single URL
++- If a library version is unavailable, use the most recent available version
++- Do not stop and ask — just pivot to the fallback automatically
++
++IMPORTANT - USE THESE EXACT LIBRARY VERSIONS:
++- WPILib 2026 (latest 2026 season release)
++- Phoenix 6 version 26.x.x (CTRE 2026)
++- Limelight use NT4 NetworkTables API
++- All vendordep JSON files must use 2026 URLs
++
++VENDORDEP URLS TO USE:
++- Phoenix 6: https://maven.ctr-electronics.com/release/com/ctre/phoenix6/latest/Phoenix6-frc2026-latest.json
++- WPILib is built in, do not add as vendordep
++
++Do NOT use any 2023, 2024, or 2025 syntax. Use only 2026 APIs.
++
++Build a complete FRC shooter system. Work through these files ONE AT A TIME.
++After each file compiles cleanly do: git add . && git commit -m "complete: [filename]" && git push
++Never skip ahead.
++
++FILE ORDER:
++1. vendordeps/Phoenix6.json — search online for latest Phoenix 6 2026 vendordep, fallback to 2025 if not found
++2. Constants.java — all CAN IDs, PID values, interpolation table, physical measurements
++3. subsystems/LimelightSubsystem.java — Limelight 4 via NT4, distance calc, rolling average filter
++4. subsystems/ShooterSubsystem.java — Kraken X60 via Phoenix 6, MotionMagicVelocityVoltage, 250Hz signals
++5. subsystems/HoodSubsystem.java — Falcon 500 via Phoenix 6, MotionMagicPositionVoltage, 25:1 gear ratio
++6. subsystems/DriveSubsystem.java — Pigeon 2.0 via Phoenix 6 for robot rotation
++7. commands/RotateToTargetCommand.java — PID on Limelight tx, ends within 1 degree for 0.1 seconds
++8. commands/PrepareToShootCommand.java — sets RPS and hood angle from distance interpolation table
++9. commands/WaitForShooterReadyCommand.java — waits for RPS within 1 RPS and hood within 1 degree, 2 second timeout
++10. commands/ShootCommand.java — fires only if shooter and hood are both ready
++11. RobotContainer.java — wires everything together, full shoot sequence button binding
++
++SHOOTER REQUIREMENTS:
++- Kraken X60 via TalonFX Phoenix 6 2026
++- MotionMagicVelocityVoltage for smooth consistent spin-up
++- kS, kV, kA feedforward in Constants.java
++- Target RPS from interpolation table based on Limelight distance
++- Ready when RPS within +/- 1 RPS for 0.1 seconds debounced
++- StatusSignal at 250Hz for minimal shot-to-shot variation
++- Never use open loop percent output
++
++HOOD REQUIREMENTS:
++- Falcon 500 via TalonFX Phoenix 6 2026
++- MotionMagicPositionVoltage for smooth precise movement
++- 25:1 gear ratio accounted for in sensor position conversion
++- Angle from same interpolation table as shooter RPS
++- Soft limits on TalonFX to prevent over-extension
++- Ready when within 1 degree of target
++
++LIMELIGHT REQUIREMENTS:
++- NT4 NetworkTables API, table name from Constants
++- tx, ty, tv signals
++- Distance calculated from ty, camera height, target height, camera angle
++- Rolling average of 5 distance samples to prevent jitter
++- Never use distance if tv is false
++
++AUTO-ALIGN REQUIREMENTS:
++- PID controller on Limelight tx error
++- Pigeon 2.0 for rotation stability
++- Ends when tx within 1 degree for 0.1 seconds
++- Does nothing if no valid target
++
++INTERPOLATION TABLE:
++- At least 6 distance/RPS/angle data points from 1.5m to 6m
++- Use TreeMap for automatic sorting by distance
++
++COMMENTS REQUIREMENT:
++- Every class must have a Javadoc comment explaining what it does
++- Every method must have a Javadoc comment
++- Every constant must have an inline comment with units and tuning advice
++- Every PID gain must comment: increase to X, decrease to Y
++- All non-obvious math must have step-by-step comments
++
++TUNING REQUIREMENT:
++- All tunable values in Constants.java only, never hardcoded elsewhere
++- Group Constants.java into clearly labeled sections:
++    // ── SHOOTER TUNING ──
++    // ── HOOD TUNING ──
++    // ── LIMELIGHT TUNING ──
++    // ── AUTO-ALIGN TUNING ──
++    // ── INTERPOLATION TABLE ──
++- Every tunable value must have a comment showing units and safe tuning range
++- When TUNING_MODE = true in Constants, read all PID values live from SmartDashboard
++
++RELIABILITY:
++- Never shoot if hasTarget() is false
++- Never shoot if RPM tolerance not met
++- Never shoot if hood angle tolerance not met
++- All three checks must pass simultaneously
++
++Build must pass after every single file: ./gradlew build
+
+# 2026-03-16 00:39:15.018196
++Build a complete FRC 2026 shooter system in Java, one file at a time.
++Commit and push after each file compiles. Use Phoenix 6, WPILib 2026, NT4.
++
++HARDWARE: Kraken X60 (CAN 10) flywheel, Falcon 500 25:1 hood (CAN 11), Limelight 4, Pigeon 2.0 (CAN 20).
++
++FILES IN ORDER:
++1. vendordeps/Phoenix6.json - Phoenix 6 2025 vendordep
++2. Constants.java - all CAN IDs, PID gains, interpolation table, tuning comments
++3. subsystems/LimelightSubsystem.java - NT4, distance calc, 5-sample filter
++4. subsystems/ShooterSubsystem.java - MotionMagicVelocityVoltage, 250Hz, +/-1 RPS ready check
++5. subsystems/HoodSubsystem.java - MotionMagicPositionVoltage, 25:1 ratio, 1 degree ready check
++6. subsystems/DriveSubsystem.java - Pigeon 2.0 rotation only
++7. commands/RotateToTargetCommand.java - PID on tx, 1 degree for 0.1s debounce
++8. commands/PrepareToShootCommand.java - set RPS and hood from distance table
++9. commands/WaitForShooterReadyCommand.java - wait for both ready, 2s timeout
++10. commands/ShootCommand.java - fire only if shooter+hood+target all ready
++11. RobotContainer.java - wire everything, shoot sequence on button
++
++RULES: Javadoc every class and method. All tuning values in Constants.java with comments showing units and safe range. TUNING_MODE=true reads PID live from SmartDashboard. Never shoot without target, RPM, and hood all confirmed ready.
+
+# 2026-03-16 00:39:15.019943
++Build a complete FRC 2026 shooter system in Java, one file at a time.
++Commit and push after each file compiles. Use Phoenix 6, WPILib 2026, NT4.
++
++HARDWARE: Kraken X60 (CAN 10) flywheel, Falcon 500 25:1 hood (CAN 11), Limelight 4, Pigeon 2.0 (CAN 20).
++
++FILES IN ORDER:
++1. vendordeps/Phoenix6.json - Phoenix 6 2025 vendordep
++2. Constants.java - all CAN IDs, PID gains, interpolation table, tuning comments
++3. subsystems/LimelightSubsystem.java - NT4, distance calc, 5-sample filter
++4. subsystems/ShooterSubsystem.java - MotionMagicVelocityVoltage, 250Hz, +/-1 RPS ready check
++5. subsystems/HoodSubsystem.java - MotionMagicPositionVoltage, 25:1 ratio, 1 degree ready check
++6. subsystems/DriveSubsystem.java - Pigeon 2.0 rotation only
++7. commands/RotateToTargetCommand.java - PID on tx, 1 degree for 0.1s debounce
++8. commands/PrepareToShootCommand.java - set RPS and hood from distance table
++9. commands/WaitForShooterReadyCommand.java - wait for both ready, 2s timeout
++10. commands/ShootCommand.java - fire only if shooter+hood+target all ready
++11. RobotContainer.java - wire everything, shoot sequence on button
++
++RULES: Javadoc every class and method. All tuning values in Constants.java with comments showing units and safe range. TUNING_MODE=true reads PID live from SmartDashboard. Never shoot without target, RPM, and hood all confirmed ready.
+
+# 2026-03-16 00:40:53.467987
++Build a complete FRC 2026 shooter system in Java, one file at a time.
++Commit and push after each file compiles. Use Phoenix 6, WPILib 2026, NT4.
++
++HARDWARE: Kraken X60 (CAN 10) flywheel, Falcon 500 25:1 hood (CAN 11), Limelight 4, Pigeon 2.0 (CAN 20).
++
++FILES IN ORDER:
++1. vendordeps/Phoenix6.json - Phoenix 6 2025 vendordep
++2. Constants.java - all CAN IDs, PID gains, interpolation table, tuning comments
++3. subsystems/LimelightSubsystem.java - NT4, distance calc, 5-sample filter
++4. subsystems/ShooterSubsystem.java - MotionMagicVelocityVoltage, 250Hz, +/-1 RPS ready check
++5. subsystems/HoodSubsystem.java - MotionMagicPositionVoltage, 25:1 ratio, 1 degree ready check
++6. subsystems/DriveSubsystem.java - Pigeon 2.0 rotation only
++7. commands/RotateToTargetCommand.java - PID on tx, 1 degree for 0.1s debounce
++8. commands/PrepareToShootCommand.java - set RPS and hood from distance table
++9. commands/WaitForShooterReadyCommand.java - wait for both ready, 2s timeout
++10. commands/ShootCommand.java - fire only if shooter+hood+target all ready
++11. RobotContainer.java - wire everything, shoot sequence on button
++
++RULES: Javadoc every class and method. All tuning values in Constants.java with comments showing units and safe range. TUNING_MODE=true reads PID live from SmartDashboard. Never shoot without target, RPM, and hood all confirmed ready.
+
+# 2026-03-16 00:40:53.468077
++Build a complete FRC 2026 shooter system in Java, one file at a time.
++Commit and push after each file compiles. Use Phoenix 6, WPILib 2026, NT4.
++
++HARDWARE: Kraken X60 (CAN 10) flywheel, Falcon 500 25:1 hood (CAN 11), Limelight 4, Pigeon 2.0 (CAN 20).
++
++FILES IN ORDER:
++1. vendordeps/Phoenix6.json - Phoenix 6 2025 vendordep
++2. Constants.java - all CAN IDs, PID gains, interpolation table, tuning comments
++3. subsystems/LimelightSubsystem.java - NT4, distance calc, 5-sample filter
++4. subsystems/ShooterSubsystem.java - MotionMagicVelocityVoltage, 250Hz, +/-1 RPS ready check
++5. subsystems/HoodSubsystem.java - MotionMagicPositionVoltage, 25:1 ratio, 1 degree ready check
++6. subsystems/DriveSubsystem.java - Pigeon 2.0 rotation only
++7. commands/RotateToTargetCommand.java - PID on tx, 1 degree for 0.1s debounce
++8. commands/PrepareToShootCommand.java - set RPS and hood from distance table
++9. commands/WaitForShooterReadyCommand.java - wait for both ready, 2s timeout
++10. commands/ShootCommand.java - fire only if shooter+hood+target all ready
++11. RobotContainer.java - wire everything, shoot sequence on button
++
++RULES: Javadoc every class and method. All tuning values in Constants.java with comments showing units and safe range. TUNING_MODE=true reads PID live from SmartDashboard. Never shoot without target, RPM, and hood all confirmed ready.
+
+# 2026-03-16 00:48:09.244216
++Build a complete FRC 2026 shooter system in Java, one file at a time.
++Commit and push after each file compiles. Use Phoenix 6, WPILib 2026, NT4.
++
++HARDWARE: Kraken X60 (CAN 10) flywheel, Falcon 500 25:1 hood (CAN 11), Limelight 4, Pigeon 2.0 (CAN 20).
++
++FILES IN ORDER:
++1. vendordeps/Phoenix6.json - Phoenix 6 2025 vendordep
++2. Constants.java - all CAN IDs, PID gains, interpolation table, tuning comments
++3. subsystems/LimelightSubsystem.java - NT4, distance calc, 5-sample filter
++4. subsystems/ShooterSubsystem.java - MotionMagicVelocityVoltage, 250Hz, +/-1 RPS ready check
++5. subsystems/HoodSubsystem.java - MotionMagicPositionVoltage, 25:1 ratio, 1 degree ready check
++6. subsystems/DriveSubsystem.java - Pigeon 2.0 rotation only
++7. commands/RotateToTargetCommand.java - PID on tx, 1 degree for 0.1s debounce
++8. commands/PrepareToShootCommand.java - set RPS and hood from distance table
++9. commands/WaitForShooterReadyCommand.java - wait for both ready, 2s timeout
++10. commands/ShootCommand.java - fire only if shooter+hood+target all ready
++11. RobotContainer.java - wire everything, shoot sequence on button
++
++RULES: Javadoc every class and method. All tuning values in Constants.java with comments showing units and safe range. TUNING_MODE=true reads PID live from SmartDashboard. Never shoot without target, RPM, and hood all confirmed ready.
+
+# 2026-03-16 00:48:09.244323
++Build a complete FRC 2026 shooter system in Java, one file at a time.
++Commit and push after each file compiles. Use Phoenix 6, WPILib 2026, NT4.
++
++HARDWARE: Kraken X60 (CAN 10) flywheel, Falcon 500 25:1 hood (CAN 11), Limelight 4, Pigeon 2.0 (CAN 20).
++
++FILES IN ORDER:
++1. vendordeps/Phoenix6.json - Phoenix 6 2025 vendordep
++2. Constants.java - all CAN IDs, PID gains, interpolation table, tuning comments
++3. subsystems/LimelightSubsystem.java - NT4, distance calc, 5-sample filter
++4. subsystems/ShooterSubsystem.java - MotionMagicVelocityVoltage, 250Hz, +/-1 RPS ready check
++5. subsystems/HoodSubsystem.java - MotionMagicPositionVoltage, 25:1 ratio, 1 degree ready check
++6. subsystems/DriveSubsystem.java - Pigeon 2.0 rotation only
++7. commands/RotateToTargetCommand.java - PID on tx, 1 degree for 0.1s debounce
++8. commands/PrepareToShootCommand.java - set RPS and hood from distance table
++9. commands/WaitForShooterReadyCommand.java - wait for both ready, 2s timeout
++10. commands/ShootCommand.java - fire only if shooter+hood+target all ready
++11. RobotContainer.java - wire everything, shoot sequence on button
++
++RULES: Javadoc every class and method. All tuning values in Constants.java with comments showing units and safe range. TUNING_MODE=true reads PID live from SmartDashboard. Never shoot without target, RPM, and hood all confirmed ready.
