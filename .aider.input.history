@@ -2632,3 +2632,33 @@
 +11. RobotContainer.java - wire everything, shoot sequence on button
 +
 +RULES: Javadoc every class and method. All tuning values in Constants.java with comments showing units and safe range. TUNING_MODE=true reads PID live from SmartDashboard. Never shoot without target, RPM, and hood all confirmed ready.
+
+# 2026-03-16 23:43:18.441055
++Write ONLY src/main/java/frc/robot/subsystems/ClimberSubsystem.java. 
++  Use Phoenix 6 2025 API, Command-based architecture, full Javadoc comments, 
++  all tuning values in Constants.java. Read existing Constants.java and AGENTS.md first.
++  After writing the file run: git add . && git commit -m 'complete: ClimberSubsystem' && git push
+
+# 2026-03-16 23:43:18.441136
++Write ONLY src/main/java/frc/robot/subsystems/ClimberSubsystem.java. 
++  Use Phoenix 6 2025 API, Command-based architecture, full Javadoc comments, 
++  all tuning values in Constants.java. Read existing Constants.java and AGENTS.md first.
++  After writing the file run: git add . && git commit -m 'complete: ClimberSubsystem' && git push
+
+# 2026-03-17 00:39:58.216643
++Write ONLY src/main/java/frc/robot/subsystems/Shooter with Hood.java
++Motors: Kraken x60 and Falcon 500 with a 25-1 gear reduction
++Sensors: Limelight 4
++Control: MotionMagicVelocity (Phoenix 6 2025)
++Description: Ramps motor speed and hood angle based off distance and heigh data from limelight for shooting into the goal.
++Requirements: Needs to be easily adjusted and tuned.
++Rules: Full Javadoc, all tuning in Constants.java with units and range comments, Command-based extending SubsystemBase. After writing: git add . && git commit -m "complete: Shooter with Hood" && git push
+
+# 2026-03-17 00:39:58.216704
++Write ONLY src/main/java/frc/robot/subsystems/Shooter with Hood.java
++Motors: Kraken x60 and Falcon 500 with a 25-1 gear reduction
++Sensors: Limelight 4
++Control: MotionMagicVelocity (Phoenix 6 2025)
++Description: Ramps motor speed and hood angle based off distance and heigh data from limelight for shooting into the goal.
++Requirements: Needs to be easily adjusted and tuned.
++Rules: Full Javadoc, all tuning in Constants.java with units and range comments, Command-based extending SubsystemBase. After writing: git add . && git commit -m "complete: Shooter with Hood" && git push
